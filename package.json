@@ -1,0 +1,19 @@
+{
+  "name": "dna-shoebot",
+  "version": "1.0.0",
+  "description": "Server App For Store Checkout",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js",
+    "nodedev": "nodemon app.js"
+  },
+  "author": "MinokoY",
+  "license": "ISC",
+  "dependencies": {
+    "@antiadmin/anticaptchaofficial": "^1.0.14",
+    "dotenv": "^10.0.0",
+    "express": "^4.17.1",
+    "puppeteer": "^10.0.0"
+  }
+}
