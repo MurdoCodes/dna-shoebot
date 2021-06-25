@@ -16,24 +16,29 @@ async function checkout(userBotData){  // The function being called on the bot.j
 }
 
 async function initBrowser(userBotData){
-    const url = siteUrl + userBotData["preferredCategoryName"];
-    let preferredProxyServer = userBotData["preferredProxyServer"];
+
+    const url = siteUrl + userBotData["preferredCategoryName"]
+    let preferredProxyServer = userBotData["preferredProxyServer"]
     const args = [
         '--proxy-server=socks5://'+preferredProxyServer,
-    ];
+    ]
     const options = {      
         headless: false,
+        slowMo: 25,
         ignoreHTTPSErrors: true,
         args
-    };
-    const browser = await puppeteer.launch(options);
-    const page = await browser.newPage();
-    const pages = await browser.pages(); if (pages.length > 1) { await pages[0].close(); } // Close unused page    
-    await page.setViewport({ width: 1920, height: 912, deviceScaleFactor: 1, }); // Set page viewport
-    page.setDefaultNavigationTimeout(0);
-    page.setDefaultTimeout(0);
+    }
+    const browser = await puppeteer.launch(options)
+    const context = await browser.createIncognitoBrowserContext()
+    const page = await context.newPage()
+    const pages = await browser.pages()
+    if (pages.length > 1) { await pages[0].close() } // Close unused page    
+    await page.setViewport({ width: 1920, height: 912, deviceScaleFactor: 1, }) // Set page viewport
+    page.setDefaultNavigationTimeout(0)
+    page.setDefaultTimeout(0)
     await page.goto(url, {waitUntil: 'load', timeout: 0});
-    await removeSoldOutProduct(page, userBotData); // Remove Sold out function
+    await page.waitForSelector(".sold_out_tag")
+    await removeSoldOutProduct(page, userBotData) // Remove Sold out function
     // return page;
 }
 
@@ -73,44 +78,6 @@ async function selectProductByName(page, userBotData){
     await addToCart(page, userBotData)
 }
 
-// async function selectProductAttribute(page, userBotData){
-//     let preferredColor = userBotData['preferredColor']
-//     let preferredSize = userBotData['preferredSize']
-
-//     // Select Color    
-//     await page.waitForSelector("#details > ul > button > img")
-//     const colorElement = await page.$$("#details > ul > button > img")
-//     const colorMapping = colorElement.map(async (element) => { 
-//         const color = await getProperty(element, 'alt')
-//         if( color === preferredColor ){
-//             console.log(color + "===" + preferredColor)
-//         }else{
-//             return "Color Not Found!!!"
-//         }
-//     })
-//     await Promise.all(colorMapping)
-
-//     // // Select Size
-//     // await page.waitForSelector('select[aria-labelledby="select-size"] > option')
-//     // const sizeElement1 = await page.$$('select[aria-labelledby="select-size"] > option') 
-//     // const sizeMapping = sizeElement1.map(async (element) => { 
-//     //     const size = await getProperty(element, 'innerText')
-//     //     console.log(size)
-//     //     if( size === preferredSize ){
-//     //         console.log(size + "===" + preferredSize)
-//     //         await element.click()
-//     //     }else{
-//     //         return "Color Not Found!!!"
-//     //     }
-//     // })
-//     // await Promise.all(sizeMapping)
-
-//     // // Select Quantity
-//     // await page.select("select#qty", preferredQuantity) // Quantity select
-
-//     // await addToCart(page, userBotData)
-// }
-
 // Bot on Add To Cart Page
 async function addToCart(page, userBotData){
 
@@ -142,7 +109,6 @@ async function addToCart(page, userBotData){
             if( size === preferredSize ){
                 const value = await getProperty(element, 'value')                
                 await page.select('select[aria-labelledby="select-size"]', value)
-                console.log(value)            
             }else{
                 return "Color Not Found!!!"
             }
@@ -158,7 +124,6 @@ async function addToCart(page, userBotData){
     });
     if(qtyElement !== null){        
         await page.select("select#qty", preferredQuantity); // Quantity select
-        console.log(preferredQuantity)
     }
 
     // If Add To Cart Button Exist
@@ -197,91 +162,116 @@ async function checkoutFormPage(page, userBotData){
     let preferredCcnCVV = userBotData["preferredCcnCVV"];
 
     await page.type("input[id='order_billing_name']", preferredBillingName); // Write Full Name
-    await page.waitForTimeout(1500);
 
     await page.type("input[id='order_email']", preferredOrder_email); // Write Email
-    await page.waitForTimeout(1500);
 
     await page.type("input[id='order_tel']", preferredOrder_number); // Write Phone Number
-    await page.waitForTimeout(1500);
 
     await page.type('input[name="order[billing_address]"]', preferredOrder_billing_address); // Write Address
-    await page.waitForTimeout(1500);
 
     await page.type("input[id='order_billing_zip']", preferredOrder_billing_zip); // Write Zip Code
-    await page.waitForTimeout(1500);
 
-    const order_billing_city = await page.evaluate(() => {
-        const element = document.querySelector("input[id='order_billing_city']");        
-        return element;
-    });
-    if(order_billing_city !== null){
-        await page.type("input[id='order_billing_city']", preferredOrder_billing_city); // Write City
-        await page.waitForTimeout(1500);
-    }
+    // const order_billing_city = await page.evaluate(() => {
+    //     const element = document.querySelector("input[id='order_billing_city']");        
+    //     return element;
+    // });
+    // if(order_billing_city !== null){
+    //     await page.type("input[id='order_billing_city']", preferredOrder_billing_city); // Write City
+    //     await page.waitForTimeout(1000);
+    // }
     
-    const order_billing_state = await page.evaluate(() => {
-        const element = document.querySelector("select#order_billing_state");        
-        return element;
-    });
-    if(order_billing_state !== null){
-        await page.select("select#order_billing_state", preferredOrder_billing_state); // Select State
-        await page.waitForTimeout(1500);
-    }   
-
-    /* Save address for future use | not usefull
-        const store_address = await page.$('input[id="store_address"]');
-        console.log(await (await store_address.getProperty('checked')).jsonValue());
-        await store_address.click(); // Check Store Address Checkbox
-    */
-    // await page.select("select#credit_card_type", "Credit Card"); // Select Credit Card Type > visa, american_express, master, jcb, cod
-    // await page.waitForTimeout(1500);
+    // const order_billing_state = await page.evaluate(() => {
+    //     const element = document.querySelector("select#order_billing_state");        
+    //     return element;
+    // });
+    // if(order_billing_state !== null){
+    //     await page.select("select#order_billing_state", preferredOrder_billing_state); // Select State
+    //     await page.waitForTimeout(1000);
+    // }   
 
     await page.type("input[id='rnsnckrn']", preferredCreditCardNumber); // Write Credit Card Number
-    await page.waitForTimeout(1500);
 
     await page.select("select#credit_card_month", preferredCcnMonth); // Select Month
-    await page.waitForTimeout(1500);
 
     await page.select("select#credit_card_year", preferredCcnYear); // Select Year
-    await page.waitForTimeout(1500);
 
     await page.type("input[id='orcer']", preferredCcnCVV); // Write Credit Card CVV
-    await page.waitForTimeout(1500);
     
-    const order_terms = await page.$('input[id="order_terms"]');
+    const order_terms = await page.$('input[id="order_terms"]'); // Click Terms and Condition
     console.log(await (await order_terms.getProperty('checked')).jsonValue());
     await order_terms.click(); // Check Order Terms
 
     await page.$eval("input[name='commit']", elem => elem.click()); // checkout button
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(1000);
 
     // Final step re captcha solver
-    await page.waitForSelector("div[data-callback='checkoutAfterCaptcha']")
+    const gReCaptchaElement = await page.evaluate(() => { // Check if gReCaptcha
+        const element = document.querySelector(".g-recaptcha");        
+        return element;
+    });
+
+    const hReCaptchaElement = await page.evaluate(() => { // Check if hReCaptcha
+        const element = document.querySelector("div[data-callback='checkoutAfterCaptcha']");        
+        return element;
+    });
+
+    await page.waitForTimeout(1000)
+    if(gReCaptchaElement){
+        await gReCaptchaResolver(page, userBotData)
+    }else if(hReCaptchaElement){
+        await hReCaptchaResolver(page, userBotData)
+    }
+}
+
+async function hReCaptchaResolver(page, userBotData){
     const captchaSiteKey = await page.evaluate(() => {
-        // const element = document.querySelector(".g-recaptcha"); // Changed
-        const element = document.querySelector("div[data-callback='checkoutAfterCaptcha'")
+        const element = document.querySelector("div[data-callback='checkoutAfterCaptcha']")
         let attribute = element.getAttribute('data-sitekey')
         return attribute;
     });
-    
     await page.waitForSelector("textarea[name='h-captcha-response']")
 
     if(captchaSiteKey){
-        console.log(page.url());
-        console.log(captchaSiteKey)
+        let captchaResponseToken = await ac.solveHCaptchaProxyless( page.url(), captchaSiteKey )
+        
+        .then((gresponse) => {
+            console.log('Captcha Solve!' + gresponse)
+            return gresponse;
+        })
+        .catch((error) => {
+            console.log('Error ReCaptcha Solving ' + error)
+        });
+        if(captchaResponseToken){
+            await page.evaluate(`document.querySelector("textarea[name='h-captcha-response']").innerHTML="${captchaResponseToken}"`)
+            console.log('ReCaptcha Solved! Finalizing Checkout!')
+            page.evaluate(`document.getElementById("checkout_form").submit();`)
+        }else{
+            console.log("Invalid ReCaptcha")
+        }
+    }
+}
+
+
+async function gReCaptchaResolver(page, userBotData){
+    const captchaSiteKey = await page.evaluate(() => {
+        const element = document.querySelector(".g-recaptcha");
+        let attribute = element.getAttribute('data-sitekey');
+        return attribute;
+    });
+
+    if(captchaSiteKey){
+
         let captchaResponseToken = await ac.solveRecaptchaV2Proxyless( page.url(), captchaSiteKey )
         .then(gresponse => {
             console.log('Solving ReCaptcha!')
             return gresponse;
         })
         .catch(error => 
-            console.log('Error ReCaptcha Solving ' + error)
+            console.log('Error ReCaptcha Solving '+error)
         );
 
         if(captchaResponseToken){
-            // await page.evaluate(`document.getElementById("g-recaptcha-response").innerHTML="${captchaResponseToken}";`); // Changed
-            await page.evaluate(`document.querySelector("textarea[name='h-captcha-response']").innerHTML="${captchaResponseToken}"`)
+            await page.evaluate(`document.getElementById("g-recaptcha-response").innerHTML="${captchaResponseToken}";`);
             console.log('ReCaptcha Solved! Finalizing Checkout!')
             page.evaluate(`document.getElementById("checkout_form").submit();`);
         }else{
@@ -289,5 +279,4 @@ async function checkoutFormPage(page, userBotData){
         }  
 
     }
-    
 }

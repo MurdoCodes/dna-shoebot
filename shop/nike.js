@@ -23,16 +23,18 @@ async function initBrowser(userBotData){ // Initialize Browser
     ];
     const options = {        
         headless: false,
-        devtools: true,
-        executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',  
+        // devtools: true,
+        // executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',
         ignoreHTTPSErrors: false,
         args
     };
 
-    const browser = await puppeteer.launch(options);
-    const page = await browser.newPage();
+    const browser = await puppeteer.launch(options) // Launch options
+    const context = await browser.createIncognitoBrowserContext() // Launch Incognito
+    const page = await context.newPage() // Create New Incognito Page
 
-    const pages = await browser.pages(); if (pages.length > 1) { await pages[0].close(); } // Close unused page    
+    const pages = await browser.pages(); // Check Pages
+    if (pages.length > 1) { await pages[0].close(); } // Close unused page    
     await page.setViewport({ width: 1920, height: 912, deviceScaleFactor: 1, }); // Set page viewport
 
     page.setDefaultNavigationTimeout(0); // Set page timeout to NULL
@@ -44,7 +46,7 @@ async function initBrowser(userBotData){ // Initialize Browser
     await browser.close(); // Close Browser
 }
 
-async function getProperty(element, propertyName){
+async function getProperty(element, propertyName){ // Get Element property function
     const property = await element.getProperty(propertyName)
     return await property.jsonValue()
 }
@@ -56,7 +58,7 @@ async function searchProduct(page, userBotData){
     var preferredGender = userBotData['preferredGender']
 
     if(preferredTitle){ // if user only added Product Title
-
+        console.log(preferredTitle)
         await page.$eval("a[aria-label='"+preferredCategoryName+"']", elem => elem.click());// Click preferred category
         await page.waitForTimeout(2000)
 
@@ -77,7 +79,7 @@ async function searchProduct(page, userBotData){
         await Promise.all(productMapping)
 
     }else if(preferredSKU){ // if user only added Product SKU
-
+        console.log(preferredSKU)
         await page.type("input[id='VisualSearchInput']", preferredSKU); // Write SKU on the search bar
         await page.waitForTimeout(2000)
 
@@ -93,7 +95,7 @@ async function searchProduct(page, userBotData){
         await Promise.all(productMapping)
 
     }else if(preferredTitle && preferredSKU ){ // if user only added Both Product Title and SKU
-
+        console.log(preferredTitle + " " + preferredSKU)
         await page.type("input[id='VisualSearchInput']", preferredSKU); // Write SKU on the search bar
         await page.waitForTimeout(2000)
 

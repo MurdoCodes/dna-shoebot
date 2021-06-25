@@ -16,6 +16,7 @@ app.get('/api/store/supreme', (req, res) => {
 
 // Nike Api Call
 app.get('/api/store/nike', (req, res) => {
+    res.send(req.query)
     nike.checkout(req.query)
 })
 
