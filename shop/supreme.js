@@ -20,12 +20,20 @@ async function initBrowser(userBotData){
     const url = siteUrl + userBotData["preferredCategoryName"]
     let preferredProxyServer = userBotData["preferredProxyServer"]
     const args = [
-        '--proxy-server=socks5://'+preferredProxyServer,
+        '--proxy-server=socks5://' + preferredProxyServer,
+        '--flag-switches-begin',        
+        '--disable-infobars',
+        '--disable-web-security',
+        '--disable-features=OutOfBlinkCors',
+        '--disable-features=IsolateOrigins',
+        ' --disable-site-isolation-trials',
+        '--flag-switches-end'
     ]
     const options = {      
         headless: false,
-        slowMo: 25,
+        slowMo: 30,
         ignoreHTTPSErrors: true,
+        ignoreDefaultArgs: ["--enable-automation"],
         args
     }
     const browser = await puppeteer.launch(options)
@@ -39,11 +47,10 @@ async function initBrowser(userBotData){
     await page.goto(url, {waitUntil: 'load', timeout: 0});
     await page.waitForSelector(".sold_out_tag")
     await removeSoldOutProduct(page, userBotData) // Remove Sold out function
-    // return page;
+    // await browser.close()
 }
 
-// Remove sold out items function
-async function removeSoldOutProduct(page, userBotData){
+async function removeSoldOutProduct(page, userBotData){ // Remove sold out items function
     let itemSoldOut = ".sold_out_tag";
     await page.evaluate((itemSoldOut) => {
         var elements = document.querySelectorAll(itemSoldOut);
@@ -87,7 +94,7 @@ async function addToCart(page, userBotData){
     let preferredQuantity = userBotData["preferredQuantity"];
             
     // If color option exist
-    await page.waitForSelector("button[data-style-name='"+preferredColor+"']")    
+    // await page.waitForSelector("button[data-style-name='"+preferredColor+"']")
     const colorElement = await page.evaluate((preferredColor) => {
         const element = document.querySelector("button[data-style-name='"+preferredColor+"']");        
         return element;
@@ -97,7 +104,7 @@ async function addToCart(page, userBotData){
     }
 
     // If sizes Exist
-    await page.waitForSelector('select[aria-labelledby="select-size"]') 
+    // await page.waitForSelector('select[aria-labelledby="select-size"]')
     const sizeElement = await page.evaluate(() => {
         const element = document.querySelector('select[aria-labelledby="select-size"]');        
         return element;
@@ -117,7 +124,7 @@ async function addToCart(page, userBotData){
     }
 
     // If Quantity Exist
-    await page.waitForSelector('select#qty') 
+    // await page.waitForSelector('select#qty')
     const qtyElement = await page.evaluate(() => {
         const element = document.querySelector('select#qty');        
         return element;
@@ -127,7 +134,7 @@ async function addToCart(page, userBotData){
     }
 
     // If Add To Cart Button Exist
-    await page.waitForSelector("input[type='submit']") 
+    await page.waitForSelector("input[type='submit']")
     const addToCartElement = await page.evaluate(() => {
         const element = document.querySelector("input[type='submit']");        
         return element;
@@ -171,23 +178,23 @@ async function checkoutFormPage(page, userBotData){
 
     await page.type("input[id='order_billing_zip']", preferredOrder_billing_zip); // Write Zip Code
 
-    // const order_billing_city = await page.evaluate(() => {
-    //     const element = document.querySelector("input[id='order_billing_city']");        
-    //     return element;
-    // });
-    // if(order_billing_city !== null){
-    //     await page.type("input[id='order_billing_city']", preferredOrder_billing_city); // Write City
-    //     await page.waitForTimeout(1000);
-    // }
+    const order_billing_city = await page.evaluate(() => {
+        const element = document.querySelector("input[id='order_billing_city']");        
+        return element;
+    });
+    if(order_billing_city !== null){
+        await page.type("input[id='order_billing_city']", preferredOrder_billing_city); // Write City
+        await page.waitForTimeout(1000);
+    }
     
-    // const order_billing_state = await page.evaluate(() => {
-    //     const element = document.querySelector("select#order_billing_state");        
-    //     return element;
-    // });
-    // if(order_billing_state !== null){
-    //     await page.select("select#order_billing_state", preferredOrder_billing_state); // Select State
-    //     await page.waitForTimeout(1000);
-    // }   
+    const order_billing_state = await page.evaluate(() => {
+        const element = document.querySelector("select#order_billing_state");        
+        return element;
+    });
+    if(order_billing_state !== null){
+        await page.select("select#order_billing_state", preferredOrder_billing_state); // Select State
+        await page.waitForTimeout(1000);
+    }   
 
     await page.type("input[id='rnsnckrn']", preferredCreditCardNumber); // Write Credit Card Number
 
@@ -244,7 +251,8 @@ async function hReCaptchaResolver(page, userBotData){
         if(captchaResponseToken){
             await page.evaluate(`document.querySelector("textarea[name='h-captcha-response']").innerHTML="${captchaResponseToken}"`)
             console.log('ReCaptcha Solved! Finalizing Checkout!')
-            page.evaluate(`document.getElementById("checkout_form").submit();`)
+            await page.evaluate(`document.getElementById("checkout_form").submit();`)
+            await confirmationPage(page, userBotData);
         }else{
             console.log("Invalid ReCaptcha")
         }
@@ -254,8 +262,8 @@ async function hReCaptchaResolver(page, userBotData){
 
 async function gReCaptchaResolver(page, userBotData){
     const captchaSiteKey = await page.evaluate(() => {
-        const element = document.querySelector(".g-recaptcha");
-        let attribute = element.getAttribute('data-sitekey');
+        const element = document.querySelector(".g-recaptcha")
+        let attribute = element.getAttribute('data-sitekey')
         return attribute;
     });
 
@@ -271,12 +279,30 @@ async function gReCaptchaResolver(page, userBotData){
         );
 
         if(captchaResponseToken){
-            await page.evaluate(`document.getElementById("g-recaptcha-response").innerHTML="${captchaResponseToken}";`);
+            await page.evaluate(`document.getElementById("g-recaptcha-response").innerHTML="${captchaResponseToken}";`)
             console.log('ReCaptcha Solved! Finalizing Checkout!')
-            page.evaluate(`document.getElementById("checkout_form").submit();`);
+            await page.evaluate(`document.getElementById("checkout_form").submit();`)
+            await confirmationPage(page, userBotData);
         }else{
-            console.log("Invalid ReCaptcha");
+            console.log("Invalid ReCaptcha")
         }  
 
     }
+}
+
+
+async function confirmationPage(page, userBotData){
+
+    await page.waitForSelector("#confirmation") // Wait for selector to appear
+    const confirmationElement = await page.$("#confirmation") // Get all a product link element
+    const confirmationMessage = await getProperty(confirmationElement, 'class')
+
+    if(confirmationMessage === failed){
+        await page.close();
+        checkout(userBotData)
+    }else{
+        await page.close();
+        return true;
+    }
+
 }

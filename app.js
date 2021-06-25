@@ -10,12 +10,14 @@ app.get('/', (req, res) => {
 
 // Supreme Api Call
 app.get('/api/store/supreme', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.send(req.query)
     supreme.checkout(req.query)
 })
 
 // Nike Api Call
 app.get('/api/store/nike', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.send(req.query)
     nike.checkout(req.query)
 })

@@ -1,4 +1,6 @@
 const puppeteer = require('puppeteer');
+// const puppeteer = require('puppeteer-extra')
+// const StealthPlugin = require('puppeteer-extra-plugin-stealth')
 const ac = require('@antiadmin/anticaptchaofficial');
 
 const siteUrl = process.env.nikeUrl; // Store URL to siteUrl
@@ -19,19 +21,28 @@ async function initBrowser(userBotData){ // Initialize Browser
     let preferredProxyServer = userBotData["preferredProxyServer"];
     const args = [        
         '--proxy-server=socks5://' + preferredProxyServer,
-        '--disable-features=OutOfBlinkCors'
+        '--flag-switches-begin',        
+        '--disable-infobars',
+        '--disable-web-security',
+        '--disable-features=OutOfBlinkCors',
+        '--disable-features=IsolateOrigins',
+        ' --disable-site-isolation-trials',
+        '--flag-switches-end'
     ];
+
     const options = {        
         headless: false,
-        // devtools: true,
-        // executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',
-        ignoreHTTPSErrors: false,
+        slowMo: 30,
+        ignoreHTTPSErrors: true,
         args
     };
-
+    // Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4512.0 Safari/537.36
     const browser = await puppeteer.launch(options) // Launch options
-    const context = await browser.createIncognitoBrowserContext() // Launch Incognito
+    const context = await browser.createIncognitoBrowserContext() // Launch Incognito    
     const page = await context.newPage() // Create New Incognito Page
+    await page.setBypassCSP(true)
+
+    await page.setUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4182.0 Safari/537.36");
 
     const pages = await browser.pages(); // Check Pages
     if (pages.length > 1) { await pages[0].close(); } // Close unused page    
@@ -42,8 +53,9 @@ async function initBrowser(userBotData){ // Initialize Browser
 
     await page.goto(siteUrl, {waitUntil: 'load', timeout: 0}); // Go to URL
 
-    await searchProduct(page, userBotData); // Call searchProduct function to start working 
-    await browser.close(); // Close Browser
+    await searchProduct(page, userBotData); // Call searchProduct function to start working
+    await page.screenshot({path: 'buddy-screenshot.png'});
+    await browser.close() // Close Browser
 }
 
 async function getProperty(element, propertyName){ // Get Element property function
@@ -58,8 +70,8 @@ async function searchProduct(page, userBotData){
     var preferredGender = userBotData['preferredGender']
 
     if(preferredTitle){ // if user only added Product Title
-        console.log(preferredTitle)
-        await page.$eval("a[aria-label='"+preferredCategoryName+"']", elem => elem.click());// Click preferred category
+
+        await page.$eval("a[aria-label='"+preferredCategoryName+"']", elem => elem.click())// Click preferred category
         await page.waitForTimeout(2000)
 
         await page.waitForSelector("a[aria-label='Filter for "+preferredGender+"']") // Select Preferred Gender
@@ -72,14 +84,15 @@ async function searchProduct(page, userBotData){
             const productTitle = await getProperty(productElement, 'innerText') // Get element Text
             if( productTitle === preferredTitle){ // If title is equal to PreferredTitle proceed
                 await productElement.click();
+                await productPage(page, userBotData)
             }else{
                 return "Item Not Found!!!"
             }
         })
-        await Promise.all(productMapping)
+        await Promise.all(productMapping)        
 
     }else if(preferredSKU){ // if user only added Product SKU
-        console.log(preferredSKU)
+
         await page.type("input[id='VisualSearchInput']", preferredSKU); // Write SKU on the search bar
         await page.waitForTimeout(2000)
 
@@ -91,11 +104,12 @@ async function searchProduct(page, userBotData){
         const productMapping = productCard.map(async (productElement) => { // Map all the product and find matched product
             const productTitle = await getProperty(productElement, 'innerText') // Get element Text
             await productElement.click();
+            await productPage(page, userBotData)
         })
         await Promise.all(productMapping)
 
     }else if(preferredTitle && preferredSKU ){ // if user only added Both Product Title and SKU
-        console.log(preferredTitle + " " + preferredSKU)
+
         await page.type("input[id='VisualSearchInput']", preferredSKU); // Write SKU on the search bar
         await page.waitForTimeout(2000)
 
@@ -107,12 +121,11 @@ async function searchProduct(page, userBotData){
         const productMapping = productCard.map(async (productElement) => { // Map all the product and find matched product
             const productTitle = await getProperty(productElement, 'innerText') // Get element Text
             await productElement.click();
+            await productPage(page, userBotData)
         })
         await Promise.all(productMapping)
 
-    }
-
-    await productPage(page, userBotData)
+    }  
 
 }
 
