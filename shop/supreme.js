@@ -45,14 +45,12 @@ async function checkout(userBotData, res){
     const url = siteUrl + userBotData["preferredCategoryName"]
     let preferredProxyServer = userBotData["preferredProxyServer"]
     const args = [
-        '--proxy-server=socks5://' + preferredProxyServer,
-        '--flag-switches-begin',        
+        '--proxy-server=socks5://' + preferredProxyServer,     
         '--disable-infobars',
         '--disable-web-security',
         '--disable-features=OutOfBlinkCors',
         '--disable-features=IsolateOrigins',
         ' --disable-site-isolation-trials',
-        '--flag-switches-end',
         '--allow-external-pages',
         '--allow-third-party-modules',
         '--data-reduction-proxy-http-proxies',
@@ -60,11 +58,12 @@ async function checkout(userBotData, res){
     ]
     const options = {      
         headless: false,
-        slowMo: 30,
+        slowMo: 35,
         ignoreHTTPSErrors: true,
         ignoreDefaultArgs: ["--enable-automation"],
         args
     }
+
     const browser = await puppeteer.launch(options)
     const context = await browser.createIncognitoBrowserContext()
     const page = await context.newPage()
@@ -411,8 +410,9 @@ async function hReCaptchaResolver(page, userBotData, res){
             sendResponse(res, responseResult)
             await confirmationPage(page, userBotData, res)
         }else{
-            responseResult = `Invalid ReCaptcha`
+            responseResult = `Invalid ReCaptcha... Trying to resolve...`
             sendResponse(res, responseResult)
+            hReCaptchaResolver(page, userBotData, res)
         }
     }
 }
@@ -446,8 +446,9 @@ async function gReCaptchaResolver(page, userBotData, res){
             sendResponse(res, responseResult)
             await confirmationPage(page, userBotData, res)
         }else{
-            responseResult = `Invalid ReCaptcha`
+            responseResult = `Invalid ReCaptcha... Trying to resolve...`
             sendResponse(res, responseResult)
+            gReCaptchaResolver(page, userBotData, res)
         }  
 
     }
@@ -463,14 +464,17 @@ async function confirmationPage(page, userBotData, res){
         return attribute;
     });
 
-    if(successMessage === 'failed'){
-        await page.close();        
+    if(successMessage === 'failed'){               
         responseResult = `Failed to checkout product ${preferredTitle}.. Retrying...`
         sendResponse(res, responseResult)
-        checkout(userBotData, res)
+        await page.goBack()
+        await page.goBack()
+        await addToCart(page, userBotData, res)
+        // await page.close()
+        // checkout(userBotData, res)
     }else{
-        await page.close();
         responseResult = `Succeffully Purchased the item ${preferredTitle}...`
         sendResponse(res, responseResult)
+        // await page.close()
     }
 }
