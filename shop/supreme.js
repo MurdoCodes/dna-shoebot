@@ -1,21 +1,46 @@
 const puppeteer = require('puppeteer');
 const ac = require('@antiadmin/anticaptchaofficial');
+const express = require('express')
+let router = express.Router()
+
+router.get('/supreme', (req, res, next) => {
+    res.set({
+        'Cache-Control': 'no-cache',
+        'Content-Type': 'text/event-stream',
+        'Connection': 'keep-alive'
+      });
+      res.flushHeaders();
+    ac.setAPIKey(process.env.anticaptchaAPIKey); // Check Anticaptcha if Connected
+        ac.getBalance()
+        .then((balance) => {
+            // res.send(`Supreme : my balance is: ${balance}`)
+            res.write(`Supreme : my balance is: ${balance}\n\n`)
+        })
+        .catch((error) => {
+            // res.send(`Supreme : an error with API key  ${error}`)
+            res.write(`Supreme : an error with API key  ${error}`)
+        });
+    checkout(req.query, res)
+    next()
+})
+module.exports = router
+
+let responseResult = '';
+function sendResponse(res, result){ // Response function
+    console.log(result)
+    res.write(`${result}!\n\n`)
+}
+async function getProperty(element, propertyName){
+    const property = await element.getProperty(propertyName)
+    return await property.jsonValue()
+}
 
 const siteUrl = process.env.supremeUrl; // Store URL to siteUrl
 // const siteUrl = 'https://supremenewyork.com/shop/all/';
 
-ac.setAPIKey(process.env.anticaptchaAPIKey); // Check Anticaptcha if Connected
-ac.getBalance()
-    .then(balance => console.log('Supreme : my balance is: ' + balance))
-    .catch(error => console.log("Supreme : an error with API key: " + error));
-
-module.exports.checkout = checkout; // Export module to be used on other js files
-
-async function checkout(userBotData){  // The function being called on the bot.js to trigger all functions
-    const page = await initBrowser(userBotData);
-}
-
-async function initBrowser(userBotData){
+async function checkout(userBotData, res){
+    responseResult = 'Connecting to the site!!!'
+    sendResponse(res, responseResult)
 
     const url = siteUrl + userBotData["preferredCategoryName"]
     let preferredProxyServer = userBotData["preferredProxyServer"]
@@ -27,7 +52,11 @@ async function initBrowser(userBotData){
         '--disable-features=OutOfBlinkCors',
         '--disable-features=IsolateOrigins',
         ' --disable-site-isolation-trials',
-        '--flag-switches-end'
+        '--flag-switches-end',
+        '--allow-external-pages',
+        '--allow-third-party-modules',
+        '--data-reduction-proxy-http-proxies',
+        '--no-sandbox'
     ]
     const options = {      
         headless: false,
@@ -44,13 +73,22 @@ async function initBrowser(userBotData){
     await page.setViewport({ width: 1920, height: 912, deviceScaleFactor: 1, }) // Set page viewport
     page.setDefaultNavigationTimeout(0)
     page.setDefaultTimeout(0)
-    await page.goto(url, {waitUntil: 'load', timeout: 0});
-    await page.waitForSelector(".sold_out_tag")
-    await removeSoldOutProduct(page, userBotData) // Remove Sold out function
-    // await browser.close()
+    const goto = await page.goto(url, {waitUntil: 'load', timeout: 0});
+
+    if(goto === null){        
+        responseResult = 'Cant get the site url... Process Stopped!!!'
+        sendResponse(res, responseResult)
+        await browser.close()
+    }else{
+        responseResult = 'Succesfully accessed the site url...'
+        sendResponse(res, responseResult)
+        await page.waitForSelector(".sold_out_tag")
+        await removeSoldOutProduct(page, userBotData, res)
+        // await browser.close()     
+    }
 }
 
-async function removeSoldOutProduct(page, userBotData){ // Remove sold out items function
+async function removeSoldOutProduct(page, userBotData, res){ // Remove sold out items function
     let itemSoldOut = ".sold_out_tag";
     await page.evaluate((itemSoldOut) => {
         var elements = document.querySelectorAll(itemSoldOut);
@@ -58,16 +96,13 @@ async function removeSoldOutProduct(page, userBotData){ // Remove sold out items
             elements[i].parentNode.parentNode.parentNode.removeChild(elements[i].parentNode.parentNode);
         }
     }, itemSoldOut);
-    selectProductByName(page, userBotData); // Proceed to function
-}
-
-async function getProperty(element, propertyName){
-    const property = await element.getProperty(propertyName)
-    return await property.jsonValue()
+    responseResult = 'Successfully removed SOLD OUT products...'
+    sendResponse(res, responseResult)
+    await selectProductByName(page, userBotData, res); // Proceed to function
 }
 
 // Select Available Product By Category
-async function selectProductByName(page, userBotData){
+async function selectProductByName(page, userBotData, res){
     let preferredTitle = userBotData["preferredTitle"];
 
     await page.waitForSelector("div.product-name > a[class='name-link']") // Wait for selector to appear
@@ -76,17 +111,26 @@ async function selectProductByName(page, userBotData){
         const productTitle = await getProperty(element, 'innerText') // Get element Text
         productText = productTitle.replace(/(\r\n|\n|\r)/gm,"");
         if( productText === preferredTitle){ // If title is equal to PreferredTitle proceed
-            await element.click()            
+            await element.click()
+            return true   
         }else{
-            return "Item Not Found!!!"
+            return false
         }
     })
     await Promise.all(productMapping)
-    await addToCart(page, userBotData)
+    .then(values => {
+        responseResult = `Successfully selected the product ${preferredTitle}`
+        sendResponse(res, responseResult)
+        addToCart(page, userBotData, res)
+    })
+    .catch(error => {
+        responseResult = error.message
+        sendResponse(res, responseResult)
+    });     
 }
 
 // Bot on Add To Cart Page
-async function addToCart(page, userBotData){
+async function addToCart(page, userBotData, res){
 
     let preferredTitle = userBotData["preferredTitle"];
     let preferredColor = userBotData["preferredColor"];
@@ -94,68 +138,76 @@ async function addToCart(page, userBotData){
     let preferredQuantity = userBotData["preferredQuantity"];
             
     // If color option exist
-    // await page.waitForSelector("button[data-style-name='"+preferredColor+"']")
+    await page.waitForSelector("button[data-style-name='"+preferredColor+"']")
     const colorElement = await page.evaluate((preferredColor) => {
         const element = document.querySelector("button[data-style-name='"+preferredColor+"']");        
         return element;
     }, preferredColor);
-    if(colorElement !== null){
+    if(colorElement !== null){        
         await page.$eval("button[data-style-name='"+preferredColor+"']", elem => elem.click()); // color picker
+        responseResult = `${preferredColor} color succesfully selected... `
+        sendResponse(res, responseResult)      
     }
 
-    // If sizes Exist
-    // await page.waitForSelector('select[aria-labelledby="select-size"]')
+    // If sizes Exist    
     const sizeElement = await page.evaluate(() => {
         const element = document.querySelector('select[aria-labelledby="select-size"]');        
         return element;
     });
     if(sizeElement !== null){
+        await page.waitForSelector('select[aria-labelledby="select-size"]')
         const sizeElement1 = await page.$$('select[aria-labelledby="select-size"] > option') 
-        const sizeMapping = sizeElement1.map(async (element) => { 
+        const sizeMapping = sizeElement1.map(async (element, res) => {
             const size = await getProperty(element, 'innerText')
             if( size === preferredSize ){
                 const value = await getProperty(element, 'value')                
                 await page.select('select[aria-labelledby="select-size"]', value)
+                responseResult = `${size} size succesfully selected... `
+                sendResponse(res, responseResult)
             }else{
-                return "Color Not Found!!!"
+                responseResult = `${size} size not found... Process Stopped!!!`
+                sendResponse(res, responseResult)
             }
         })
-        await Promise.all(sizeMapping)      
     }
 
     // If Quantity Exist
-    // await page.waitForSelector('select#qty')
     const qtyElement = await page.evaluate(() => {
         const element = document.querySelector('select#qty');        
         return element;
     });
-    if(qtyElement !== null){        
+    if(qtyElement !== null){  
+        await page.waitForSelector('select#qty')      
         await page.select("select#qty", preferredQuantity); // Quantity select
+        responseResult = `${preferredQuantity} quantity/ies selected...`
+        sendResponse(res, responseResult)
     }
 
-    // If Add To Cart Button Exist
-    await page.waitForSelector("input[type='submit']")
+    // If Add To Cart Button Exist    
     const addToCartElement = await page.evaluate(() => {
         const element = document.querySelector("input[type='submit']");        
         return element;
     });
     if(addToCartElement !== null){
-        await page.$eval("input[value='add to cart']", elem => elem.click()); // add to cart button
-        await page.waitForSelector("a[class='button checkout']", {visible: true});
-        await page.$eval("a[class='button checkout']", elem => elem.click()); // checkout button
+        await page.waitForSelector("input[type='submit']")
+        await page.$eval("input[value='add to cart']", elem => elem.click()) // add to cart button
+        await page.waitForSelector("a[class='button checkout']", {visible: true})
+        await page.$eval("a[class='button checkout']", elem => elem.click()) // checkout button
         try {
-            await page.waitForSelector('input#order_billing_name');
-            checkoutFormPage(page, userBotData); 
+            responseResult = `${preferredTitle} product successfully added to cart...`
+            sendResponse(res, responseResult)
+            checkoutFormPage(page, userBotData, res)
         } catch (e) {
             await page.waitForSelector('input#order_billing_name');
-            checkoutFormPage(page, userBotData); 
-            console.log('Element Does Not Exist');
+            responseResult = `Product Does Not Exist... Retrying to select product ${preferredTitle}!!!`
+            sendResponse(res, responseResult)
+            checkoutFormPage(page, userBotData, res)           
         }
     }
 }
 
 // Bot on Delivery Page
-async function checkoutFormPage(page, userBotData){
+async function checkoutFormPage(page, userBotData, res){
     let preferredBillingName = userBotData["preferredBillingName"];
     let preferredOrder_email = userBotData["preferredOrder_email"];
     let preferredOrder_number = userBotData["preferredOrder_number"];
@@ -168,46 +220,145 @@ async function checkoutFormPage(page, userBotData){
     let preferredCcnYear = userBotData["preferredCcnYear"];
     let preferredCcnCVV = userBotData["preferredCcnCVV"];
 
-    await page.type("input[id='order_billing_name']", preferredBillingName); // Write Full Name
-
-    await page.type("input[id='order_email']", preferredOrder_email); // Write Email
-
-    await page.type("input[id='order_tel']", preferredOrder_number); // Write Phone Number
-
-    await page.type('input[name="order[billing_address]"]', preferredOrder_billing_address); // Write Address
-
-    await page.type("input[id='order_billing_zip']", preferredOrder_billing_zip); // Write Zip Code
-
-    const order_billing_city = await page.evaluate(() => {
-        const element = document.querySelector("input[id='order_billing_city']");        
+    await page.waitForSelector("input[id='order_billing_name']")
+    const order_billing_name = await page.evaluate(() => {
+        const element = document.querySelector("input[id='order_billing_name']");        
         return element;
     });
-    if(order_billing_city !== null){
-        await page.type("input[id='order_billing_city']", preferredOrder_billing_city); // Write City
+    if(order_billing_name !== null){
+        await page.type("input[id='order_billing_name']", preferredBillingName); // Write Full Name        
         await page.waitForTimeout(1000);
+        responseResult = `Successfully written Billing Name...`
+        sendResponse(res, responseResult)
+    }
+
+    await page.waitForSelector("input[id='order_email']")
+    const order_email = await page.evaluate(() => {
+        const element = document.querySelector("input[id='order_email']");        
+        return element;
+    });
+    if(order_email !== null){
+        await page.type("input[id='order_email']", preferredOrder_email); // Write Email        
+        await page.waitForTimeout(1000)
+        responseResult = `Successfully written Email Address...`
+        sendResponse(res, responseResult)
+    }
+
+    await page.waitForSelector("input[id='order_tel']")
+    const order_tel = await page.evaluate(() => {
+        const element = document.querySelector("input[id='order_tel']");        
+        return element;
+    });
+    if(order_tel !== null){
+        await page.type("input[id='order_tel']", preferredOrder_number); // Write Contact Number        
+        await page.waitForTimeout(1000)
+        responseResult = `Successfully written Contact Number...`
+        sendResponse(res, responseResult)
+    }
+
+    await page.waitForSelector("input[name='order[billing_address]']")
+    const billing_address = await page.evaluate(() => {
+        const element = document.querySelector("input[name='order[billing_address]']");        
+        return element;
+    });
+    if(billing_address !== null){
+        await page.type("input[name='order[billing_address]']", preferredOrder_billing_address); // Write Billing Address        
+        await page.waitForTimeout(1000);
+        responseResult = `Successfully written Billing Address...`
+        sendResponse(res, responseResult)
+    }
+
+    await page.waitForSelector("input[name='order[billing_zip]']")
+    const order_billing_zip = await page.evaluate(() => {
+        const element = document.querySelector("input[name='order[billing_zip]']");        
+        return element;
+    });
+    if(order_billing_zip !== null){
+        await page.type("input[name='order[billing_zip]']", preferredOrder_billing_zip); // Write Zip Code        
+        await page.waitForTimeout(1000)
+        responseResult = `Successfully written Zip Code...`
+        sendResponse(res, responseResult)
+    }
+
+    // await page.waitForSelector("input[name='order[billing_city]']")
+    // const order_billing_city = await page.evaluate(() => {
+    //     const element = document.querySelector("input[name='order[billing_city]']");        
+    //     return element;
+    // });
+    // if(order_billing_city !== null){
+    //     await page.type("input[name='order[billing_city]']", preferredOrder_billing_city); // Write City
+    //     await page.waitForTimeout(1000)
+    //     responseResult = `Successfully written City...`
+    //     sendResponse(res, responseResult)
+    // }
+    
+    // await page.waitForSelector("select#order_billing_state")
+    // const order_billing_state = await page.evaluate(() => {
+    //     const element = document.querySelector("select#order_billing_state");        
+    //     return element;
+    // });
+    // if(order_billing_state !== null){
+    //     await page.select("select#order_billing_state", preferredOrder_billing_state); // Select State
+    //     await page.waitForTimeout(1000)
+    //     responseResult = `Successfully selected State...`
+    //     sendResponse(res, responseResult)
+    // }
+
+    await page.waitForSelector("input[id='rnsnckrn']")
+    const rnsnckrn = await page.evaluate(() => {
+        const element = document.querySelector("input[id='rnsnckrn']");        
+        return element;
+    });
+    if(rnsnckrn !== null){
+        await page.type("input[id='rnsnckrn']", preferredCreditCardNumber); // Write Credit Card Number
+        await page.waitForTimeout(1000)
+        responseResult = `Successfully written Credit Card Number...`
+        sendResponse(res, responseResult)
+    }
+
+    await page.waitForSelector("select[id='credit_card_month']")
+    const credit_card_month = await page.evaluate(() => {
+        const element = document.querySelector("select[id='credit_card_month']");        
+        return element;
+    });
+    if(credit_card_month !== null){
+        // await page.type("input[id='credit_card_month']", preferredCcnMonth); // Write Credit Card Month
+        await page.select("select[id='credit_card_month']", preferredCcnMonth);
+        await page.waitForTimeout(1000)
+        responseResult = `Successfully selected Credit Card Month...`
+        sendResponse(res, responseResult)
+    }
+
+    await page.waitForSelector("select[id='credit_card_year']")
+    const credit_card_year = await page.evaluate(() => {
+        const element = document.querySelector("select[id='credit_card_year']");        
+        return element;
+    });
+    if(credit_card_year !== null){
+        await page.type("select[id='credit_card_year']", preferredCcnYear); // Write Credit Card Year
+        await page.waitForTimeout(1000)
+        responseResult = `Successfully selected Credit Card Year...`
+        sendResponse(res, responseResult)
+    }
+
+    await page.waitForSelector("input[id='orcer']")
+    const orcer = await page.evaluate(() => {
+        const element = document.querySelector("input[id='orcer']");        
+        return element;
+    });
+    if(orcer !== null){
+        await page.type("input[id='orcer']", preferredCcnCVV); // Write Credit Card CVV
+        await page.waitForTimeout(1000)
+        responseResult = `Successfully written Credit Card CVV...`
+        sendResponse(res, responseResult)
     }
     
-    const order_billing_state = await page.evaluate(() => {
-        const element = document.querySelector("select#order_billing_state");        
-        return element;
-    });
-    if(order_billing_state !== null){
-        await page.select("select#order_billing_state", preferredOrder_billing_state); // Select State
-        await page.waitForTimeout(1000);
-    }   
-
-    await page.type("input[id='rnsnckrn']", preferredCreditCardNumber); // Write Credit Card Number
-
-    await page.select("select#credit_card_month", preferredCcnMonth); // Select Month
-
-    await page.select("select#credit_card_year", preferredCcnYear); // Select Year
-
-    await page.type("input[id='orcer']", preferredCcnCVV); // Write Credit Card CVV
-    
+    await page.waitForSelector('input[id="order_terms"]')
     const order_terms = await page.$('input[id="order_terms"]'); // Click Terms and Condition
     console.log(await (await order_terms.getProperty('checked')).jsonValue());
     await order_terms.click(); // Check Order Terms
 
+    await page.waitForSelector("input[name='commit']")
     await page.$eval("input[name='commit']", elem => elem.click()); // checkout button
     await page.waitForTimeout(1000);
 
@@ -224,13 +375,15 @@ async function checkoutFormPage(page, userBotData){
 
     await page.waitForTimeout(1000)
     if(gReCaptchaElement){
-        await gReCaptchaResolver(page, userBotData)
+        await gReCaptchaResolver(page, userBotData, res)
     }else if(hReCaptchaElement){
-        await hReCaptchaResolver(page, userBotData)
+        await hReCaptchaResolver(page, userBotData, res)
     }
 }
 
-async function hReCaptchaResolver(page, userBotData){
+async function hReCaptchaResolver(page, userBotData, res){
+    responseResult = `Solving ReCaptcha!!`
+    sendResponse(res, responseResult)
     const captchaSiteKey = await page.evaluate(() => {
         const element = document.querySelector("div[data-callback='checkoutAfterCaptcha']")
         let attribute = element.getAttribute('data-sitekey')
@@ -242,25 +395,30 @@ async function hReCaptchaResolver(page, userBotData){
         let captchaResponseToken = await ac.solveHCaptchaProxyless( page.url(), captchaSiteKey )
         
         .then((gresponse) => {
-            console.log('Captcha Solve!' + gresponse)
-            return gresponse;
+            responseResult = `Captcha Solved!`
+            sendResponse(res, responseResult)
+            return true
         })
         .catch((error) => {
-            console.log('Error ReCaptcha Solving ' + error)
+            responseResult = `Error ReCaptcha Solving! ${error}`
+            sendResponse(res, responseResult)
+            return false
         });
-        if(captchaResponseToken){
-            await page.evaluate(`document.querySelector("textarea[name='h-captcha-response']").innerHTML="${captchaResponseToken}"`)
-            console.log('ReCaptcha Solved! Finalizing Checkout!')
+        if(captchaResponseToken == true){
+            await page.evaluate(`document.querySelector("textarea[name='h-captcha-response']").innerHTML="${captchaResponseToken}"`)            
             await page.evaluate(`document.getElementById("checkout_form").submit();`)
-            await confirmationPage(page, userBotData);
+            responseResult = `ReCaptcha Solved! Finalizing Checkout!! ${captchaResponseToken}`
+            sendResponse(res, responseResult)
+            await confirmationPage(page, userBotData, res)
         }else{
-            console.log("Invalid ReCaptcha")
+            responseResult = `Invalid ReCaptcha`
+            sendResponse(res, responseResult)
         }
     }
 }
 
 
-async function gReCaptchaResolver(page, userBotData){
+async function gReCaptchaResolver(page, userBotData, res){
     const captchaSiteKey = await page.evaluate(() => {
         const element = document.querySelector(".g-recaptcha")
         let attribute = element.getAttribute('data-sitekey')
@@ -271,38 +429,48 @@ async function gReCaptchaResolver(page, userBotData){
 
         let captchaResponseToken = await ac.solveRecaptchaV2Proxyless( page.url(), captchaSiteKey )
         .then(gresponse => {
-            console.log('Solving ReCaptcha!')
-            return gresponse;
+            responseResult = `Solving ReCaptcha! ${gresponse}`
+            sendResponse(res, responseResult)
+            return true
         })
-        .catch(error => 
-            console.log('Error ReCaptcha Solving '+error)
-        );
+        .catch(error => {            
+            responseResult = `Error ReCaptcha Solving ${error}`
+            sendResponse(res, responseResult)
+            return false
+        })
 
-        if(captchaResponseToken){
-            await page.evaluate(`document.getElementById("g-recaptcha-response").innerHTML="${captchaResponseToken}";`)
-            console.log('ReCaptcha Solved! Finalizing Checkout!')
+        if(captchaResponseToken == true){
+            await page.evaluate(`document.getElementById("g-recaptcha-response").innerHTML="${captchaResponseToken}";`)            
             await page.evaluate(`document.getElementById("checkout_form").submit();`)
-            await confirmationPage(page, userBotData);
+            responseResult = `ReCaptcha Solved! Finalizing Checkout!!`
+            sendResponse(res, responseResult)
+            await confirmationPage(page, userBotData, res)
         }else{
-            console.log("Invalid ReCaptcha")
+            responseResult = `Invalid ReCaptcha`
+            sendResponse(res, responseResult)
         }  
 
     }
 }
 
+async function confirmationPage(page, userBotData, res){    
+    let preferredTitle = userBotData['preferredTitle']
+    await page.waitForSelector("#confirmation")
 
-async function confirmationPage(page, userBotData){
+    const successMessage = await page.evaluate(() => {
+        const element = document.querySelector("#confirmation")
+        let attribute = element.getAttribute('class')
+        return attribute;
+    });
 
-    await page.waitForSelector("#confirmation") // Wait for selector to appear
-    const confirmationElement = await page.$("#confirmation") // Get all a product link element
-    const confirmationMessage = await getProperty(confirmationElement, 'class')
-
-    if(confirmationMessage === failed){
-        await page.close();
-        checkout(userBotData)
+    if(successMessage === 'failed'){
+        await page.close();        
+        responseResult = `Failed to checkout product ${preferredTitle}.. Retrying...`
+        sendResponse(res, responseResult)
+        checkout(userBotData, res)
     }else{
         await page.close();
-        return true;
+        responseResult = `Succeffully Purchased the item ${preferredTitle}...`
+        sendResponse(res, responseResult)
     }
-
 }
