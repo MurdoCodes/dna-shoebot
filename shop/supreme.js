@@ -37,7 +37,8 @@ async function getProperty(element, propertyName){
     return await property.jsonValue()
 }
 
-const siteUrl = process.env.supremeUrl; // Store URL to siteUrl
+const siteUrl = process.env.supremeUrl || 'https://supremenewyork.com/shop/all/'; // Store URL to siteUrl
+console.log(siteUrl)
 // const siteUrl = 'https://supremenewyork.com/shop/all/';
 
 async function checkout(userBotData, res){
