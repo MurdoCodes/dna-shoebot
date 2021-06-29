@@ -473,14 +473,14 @@ async function confirmationPage(page, userBotData, res){
     if(successMessage === 'failed'){               
         responseResult = `Failed to checkout product ${preferredTitle}.. Retrying...`
         sendResponse(res, responseResult)
-        await page.goBack()
-        await page.goBack()
-        await addToCart(page, userBotData, res)
-        // await page.close()
+        // await page.goBack()
+        // await page.goBack()
+        // await addToCart(page, userBotData, res)
+        await page.close()
         // checkout(userBotData, res)
     }else{
         responseResult = `Succeffully Purchased the item ${preferredTitle}...`
         sendResponse(res, responseResult)
-        // await page.close()
+        await page.close()
     }
 }
