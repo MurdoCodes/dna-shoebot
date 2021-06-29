@@ -71,8 +71,8 @@ async function checkout(userBotData, res){
     }
 
     const browser = await puppeteer.launch(options)
-    const context = await browser.createIncognitoBrowserContext()
-    const page = await context.newPage()
+    // const context = await browser.createIncognitoBrowserContext()
+    const page = await browser.newPage()
     const pages = await browser.pages()
     if (pages.length > 1) { await pages[0].close() } // Close unused page    
     await page.setViewport({ width: 1920, height: 912, deviceScaleFactor: 1, }) // Set page viewport
