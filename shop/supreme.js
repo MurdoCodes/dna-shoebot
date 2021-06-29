@@ -3,6 +3,8 @@ const ac = require('@antiadmin/anticaptchaofficial');
 const express = require('express')
 let router = express.Router()
 
+const antiCaptchaKey = process.env.anticaptchaAPIKey || '1d0f98f50be1aa14f3b726b3ffdd2ffb'
+
 router.get('/supreme', (req, res, next) => {
     res.set({
         'Cache-Control': 'no-cache',
@@ -10,7 +12,7 @@ router.get('/supreme', (req, res, next) => {
         'Connection': 'keep-alive'
       });
       res.flushHeaders();
-    ac.setAPIKey(process.env.anticaptchaAPIKey); // Check Anticaptcha if Connected
+    ac.setAPIKey(antiCaptchaKey); // Check Anticaptcha if Connected
         ac.getBalance()
         .then((balance) => {
             // res.send(`Supreme : my balance is: ${balance}`)
