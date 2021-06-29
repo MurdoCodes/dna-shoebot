@@ -51,16 +51,16 @@ async function checkout(userBotData, res){
     let preferredProxyServer = userBotData["preferredProxyServer"]
     const args = [
         '--proxy-server=socks5://' + preferredProxyServer,     
-        '--disable-infobars',
+        // '--disable-infobars',
         '--disable-web-security',
-        '--disable-features=OutOfBlinkCors',
-        '--disable-features=IsolateOrigins',
-        ' --disable-site-isolation-trials',
-        '--allow-external-pages',
-        '--allow-third-party-modules',
-        '--data-reduction-proxy-http-proxies',
+        // '--disable-features=OutOfBlinkCors',
+        // '--disable-features=IsolateOrigins',
+        // ' --disable-site-isolation-trials',
+        // '--allow-external-pages',
+        // '--allow-third-party-modules',
+        // '--data-reduction-proxy-http-proxies',
         '--no-sandbox',
-        '--disable-setuid-sandbox'
+        // '--disable-setuid-sandbox'
     ]
     const options = {  
         headless: true,
