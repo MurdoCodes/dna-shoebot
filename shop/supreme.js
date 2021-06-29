@@ -59,11 +59,11 @@ async function checkout(userBotData, res){
         '--allow-external-pages',
         '--allow-third-party-modules',
         '--data-reduction-proxy-http-proxies',
-        '--no-sandbox'
+        '--no-sandbox',
+        '--disable-setuid-sandbox'
     ]
     const options = {  
         headless: false,
-        executablePath: '/usr/bin/chromium-browser',
         slowMo: 35,
         ignoreHTTPSErrors: true,
         ignoreDefaultArgs: ["--enable-automation"],
