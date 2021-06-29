@@ -64,6 +64,7 @@ async function checkout(userBotData, res){
     ]
     const options = {  
         headless: false,
+        executablePath: '/usr/lib/chromium/chromium',
         slowMo: 35,
         ignoreHTTPSErrors: true,
         ignoreDefaultArgs: ["--enable-automation"],
