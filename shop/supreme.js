@@ -63,8 +63,7 @@ async function checkout(userBotData, res){
         '--disable-setuid-sandbox'
     ]
     const options = {  
-        headless: false,
-        executablePath: '/snap/bin/chromium',
+        headless: true,
         slowMo: 35,
         ignoreHTTPSErrors: true,
         ignoreDefaultArgs: ["--enable-automation"],
