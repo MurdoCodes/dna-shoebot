@@ -42,5 +42,5 @@ app.use('/api/store/', supreme)
 // })
 
 // PORT
-const PORT = process.env.PORT || 3000; // Declare env port
+const PORT = process.env.PORT || 5000; // Declare env port
 app.listen(PORT, () => console.log(`Listening to port ${PORT}`)) // listen to PORT
