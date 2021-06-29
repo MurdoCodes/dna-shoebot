@@ -4,6 +4,11 @@ const express = require('express')
 let router = express.Router()
 
 const antiCaptchaKey = process.env.anticaptchaAPIKey || '1d0f98f50be1aa14f3b726b3ffdd2ffb'
+console.log(antiCaptchaKey)
+
+const siteUrl = process.env.supremeUrl || 'https://supremenewyork.com/shop/all/'; // Store URL to siteUrl
+console.log(siteUrl)
+// const siteUrl = 'https://supremenewyork.com/shop/all/';
 
 router.get('/supreme', (req, res, next) => {
     res.set({
@@ -32,14 +37,11 @@ function sendResponse(res, result){ // Response function
     console.log(result)
     res.write(`${result}!\n\n`)
 }
+
 async function getProperty(element, propertyName){
     const property = await element.getProperty(propertyName)
     return await property.jsonValue()
 }
-
-const siteUrl = process.env.supremeUrl || 'https://supremenewyork.com/shop/all/'; // Store URL to siteUrl
-console.log(siteUrl)
-// const siteUrl = 'https://supremenewyork.com/shop/all/';
 
 async function checkout(userBotData, res){
     responseResult = 'Connecting to the site!!!'
@@ -59,8 +61,9 @@ async function checkout(userBotData, res){
         '--data-reduction-proxy-http-proxies',
         '--no-sandbox'
     ]
-    const options = {      
+    const options = {  
         headless: false,
+        executablePath: '/usr/bin/chromium-browser',
         slowMo: 35,
         ignoreHTTPSErrors: true,
         ignoreDefaultArgs: ["--enable-automation"],
