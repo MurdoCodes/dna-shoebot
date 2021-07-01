@@ -1,16 +1,12 @@
-const puppeteer = require('puppeteer');
-const ac = require('@antiadmin/anticaptchaofficial');
+const puppeteer = require('puppeteer')
+const ac = require('@antiadmin/anticaptchaofficial')
 const express = require('express')
 let router = express.Router()
 
-const antiCaptchaKey = process.env.anticaptchaAPIKey || '1d0f98f50be1aa14f3b726b3ffdd2ffb'
-console.log(antiCaptchaKey)
+const antiCaptchaKey = process.env.anticaptchaAPIKey || '1d0f98f50be1aa14f3b726b3ffdd2ffb' // AntiCaptcha API Key
+const siteUrl = process.env.supremeUrl || 'https://supremenewyork.com/shop/all/' // Store URL
 
-const siteUrl = process.env.supremeUrl || 'https://supremenewyork.com/shop/all/'; // Store URL to siteUrl
-console.log(siteUrl)
-// const siteUrl = 'https://supremenewyork.com/shop/all/';
-
-router.get('/supreme', (req, res, next) => {
+router.get('/', (req, res, next) => {
     res.set({
         'Cache-Control': 'no-cache',
         'Content-Type': 'text/event-stream',
@@ -20,73 +16,101 @@ router.get('/supreme', (req, res, next) => {
     ac.setAPIKey(antiCaptchaKey); // Check Anticaptcha if Connected
         ac.getBalance()
         .then((balance) => {
-            // res.send(`Supreme : my balance is: ${balance}`)
             res.write(`Supreme : my balance is: ${balance}\n\n`)
         })
         .catch((error) => {
-            // res.send(`Supreme : an error with API key  ${error}`)
             res.write(`Supreme : an error with API key  ${error}`)
         });
     checkout(req.query, res)
     next()
 })
-module.exports = router
+module.exports = router // Export module
 
 let responseResult = '';
-function sendResponse(res, result){ // Response function
+function sendResponse(res, result){ // Server to client Response
     console.log(result)
     res.write(`${result}!\n\n`)
 }
 
-async function getProperty(element, propertyName){
+async function getProperty(element, propertyName){ // Get Element Property
     const property = await element.getProperty(propertyName)
     return await property.jsonValue()
 }
 
 async function checkout(userBotData, res){
-    responseResult = 'Connecting to the site!!!'
-    sendResponse(res, responseResult)
+    sendResponse(res, 'Connecting to the site!!!') // Return update to client
 
-    const url = siteUrl + userBotData["preferredCategoryName"]
-    let preferredProxyServer = userBotData["preferredProxyServer"]
+    const url = siteUrl + userBotData["preferredCategoryName"] // Add Category name to the url to scrape
+    let preferredProxyServer = userBotData["preferredProxyServer"] // Set proxy server
+
     const args = [
-        '--proxy-server=socks5://' + preferredProxyServer,     
-        // '--disable-infobars',
-        '--disable-web-security',
-        // '--disable-features=OutOfBlinkCors',
-        // '--disable-features=IsolateOrigins',
-        // ' --disable-site-isolation-trials',
-        // '--allow-external-pages',
-        // '--allow-third-party-modules',
-        // '--data-reduction-proxy-http-proxies',
+        '--proxy-server=socks5://' + preferredProxyServer,
         '--no-sandbox',
-        // '--disable-setuid-sandbox'
+        '--disbale-setuid-sandbox',
+        '--disable-web-security',
+        '--ignore-certificate-errors',
+        '--allow-running-insecure-content',
+        '--disable-extentions',
+        '--disbale=gpu',
+        '--disable-dev-shm-usage',
+        '--allow-file-access-from-files',
+        '--allow-file-access',
+        '--allow-cross-origin-auth-prompt',
     ]
-    const options = {  
-        headless: true,
-        slowMo: 35,
-        ignoreHTTPSErrors: true,
-        ignoreDefaultArgs: ["--enable-automation"],
-        args
+    const options = {
+        slowMo: 50,
+        headless: false,       
+        ignoreDefaultArgs: ["--enable-automation"], 
+        ignoreHTTPSErrors: true,      
+        args,
+        executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe'
     }
 
     const browser = await puppeteer.launch(options)
-    // const context = await browser.createIncognitoBrowserContext()
-    const page = await browser.newPage()
-    const pages = await browser.pages()
-    if (pages.length > 1) { await pages[0].close() } // Close unused page    
-    await page.setViewport({ width: 1920, height: 912, deviceScaleFactor: 1, }) // Set page viewport
-    page.setDefaultNavigationTimeout(0)
-    page.setDefaultTimeout(0)
-    const goto = await page.goto(url, {waitUntil: 'load', timeout: 0});
+    const context = await browser.createIncognitoBrowserContext() // Use Incognito Browser
+    const page = await context.newPage()
+    await page.evaluateOnNewDocument(() => {delete navigator.__proto__.webdriver;});
+     // Bypass hairline feature
+     await page.evaluateOnNewDocument(() => {
+        // store the existing descriptor
+        const elementDescriptor = Object.getOwnPropertyDescriptor(
+          HTMLElement.prototype,
+          "offsetHeight"
+        );  
+        // redefine the property with a patched descriptor
+        Object.defineProperty(HTMLDivElement.prototype, "offsetHeight", {
+          ...elementDescriptor,
+          get: function() {
+            if (this.id === "modernizr") {
+              return 1;
+            }
+            // @ts-ignore
+            return elementDescriptor.get.apply(this);
+          },
+        });
+    });
 
-    if(goto === null){        
-        responseResult = 'Cant get the site url... Process Stopped!!!'
-        sendResponse(res, responseResult)
+    await page.setExtraHTTPHeaders({
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.131 Safari/537.36',
+        'upgrade-insecure-requests': '1',
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
+        'accept-encoding': 'gzip, deflate, br',
+        'accept-language': 'en-US,en;q=0.9,en;q=0.8'
+    })
+
+    const pages = await browser.pages()
+    if (pages.length > 1) { await pages[0].close() } // Close unused pages
+    await page.setViewport({ width: 1920, height: 912, deviceScaleFactor: 1, }) // Set page viewport
+    await page.setDefaultTimeout(0) // Set timeout to 0
+
+    // const goto = await page.goto('https://bot.sannysoft.com/', {waitUntil: 'networkidle2', timeout: 0});
+    const goto = await page.goto(url, {waitUntil: 'networkidle2', timeout: 0});
+    
+    if(goto === null){
+        sendResponse(res, 'Cant get the site url... Process Stopped!!!')
         await browser.close()
     }else{
-        responseResult = 'Succesfully accessed the site url...'
-        sendResponse(res, responseResult)
+        sendResponse(res, 'Succesfully accessed the site url...')
         await page.waitForSelector(".sold_out_tag")
         await removeSoldOutProduct(page, userBotData, res)
         // await browser.close()     
@@ -94,20 +118,20 @@ async function checkout(userBotData, res){
 }
 
 async function removeSoldOutProduct(page, userBotData, res){ // Remove sold out items function
-    let itemSoldOut = ".sold_out_tag";
+    let itemSoldOut = ".sold_out_tag"
     await page.evaluate((itemSoldOut) => {
         var elements = document.querySelectorAll(itemSoldOut);
         for(var i=0; i< elements.length; i++){ 
             elements[i].parentNode.parentNode.parentNode.removeChild(elements[i].parentNode.parentNode);
         }
-    }, itemSoldOut);
-    responseResult = 'Successfully removed SOLD OUT products...'
-    sendResponse(res, responseResult)
-    await selectProductByName(page, userBotData, res); // Proceed to function
+    }, itemSoldOut)
+
+    sendResponse(res, 'Successfully removed SOLD OUT products...')
+    await selectProductByName(page, userBotData, res) // Proceed to function selecting of product
 }
 
-// Select Available Product By Category
-async function selectProductByName(page, userBotData, res){
+
+async function selectProductByName(page, userBotData, res){ // Select Available Product By Category
     let preferredTitle = userBotData["preferredTitle"];
 
     await page.waitForSelector("div.product-name > a[class='name-link']") // Wait for selector to appear
@@ -122,15 +146,14 @@ async function selectProductByName(page, userBotData, res){
             return false
         }
     })
+
     await Promise.all(productMapping)
     .then(values => {
-        responseResult = `Successfully selected the product ${preferredTitle}`
-        sendResponse(res, responseResult)
+        sendResponse(res, `Successfully selected the product ${preferredTitle}`)
         addToCart(page, userBotData, res)
     })
     .catch(error => {
-        responseResult = error.message
-        sendResponse(res, responseResult)
+        sendResponse(res, `Product ${preferredTitle} is no longer available... Process stopped!! ${error.message}`)
     });     
 }
 
@@ -150,8 +173,7 @@ async function addToCart(page, userBotData, res){
     }, preferredColor);
     if(colorElement !== null){        
         await page.$eval("button[data-style-name='"+preferredColor+"']", elem => elem.click()); // color picker
-        responseResult = `${preferredColor} color succesfully selected... `
-        sendResponse(res, responseResult)      
+        sendResponse(res, `${preferredColor} color succesfully selected... `)      
     }
 
     // If sizes Exist    
@@ -448,12 +470,10 @@ async function gReCaptchaResolver(page, userBotData, res){
         if(captchaResponseToken == true){
             await page.evaluate(`document.getElementById("g-recaptcha-response").innerHTML="${captchaResponseToken}";`)            
             await page.evaluate(`document.getElementById("checkout_form").submit();`)
-            responseResult = `ReCaptcha Solved! Finalizing Checkout!!`
-            sendResponse(res, responseResult)
+            sendResponse(res, `ReCaptcha Solved! Finalizing Checkout!!`)
             await confirmationPage(page, userBotData, res)
         }else{
-            responseResult = `Invalid ReCaptcha... Trying to resolve...`
-            sendResponse(res, responseResult)
+            sendResponse(res, `Invalid ReCaptcha... Trying to resolve...`)
             gReCaptchaResolver(page, userBotData, res)
         }  
 
@@ -470,17 +490,15 @@ async function confirmationPage(page, userBotData, res){
         return attribute;
     });
 
-    if(successMessage === 'failed'){               
-        responseResult = `Failed to checkout product ${preferredTitle}.. Retrying...`
-        sendResponse(res, responseResult)
+    if(successMessage === 'failed'){
+        sendResponse(res, `Failed to checkout product ${preferredTitle}.. Retrying...`)
         // await page.goBack()
         // await page.goBack()
         // await addToCart(page, userBotData, res)
-        await page.close()
+        // await page.close()
         // checkout(userBotData, res)
     }else{
-        responseResult = `Succeffully Purchased the item ${preferredTitle}...`
-        sendResponse(res, responseResult)
-        await page.close()
+        sendResponse(res, `Succeffully Purchased the item ${preferredTitle}...`)
+        // await page.close()
     }
 }

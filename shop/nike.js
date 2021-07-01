@@ -1,60 +1,110 @@
 const puppeteer = require('puppeteer');
-// const puppeteer = require('puppeteer-extra')
-// const StealthPlugin = require('puppeteer-extra-plugin-stealth')
 const ac = require('@antiadmin/anticaptchaofficial');
+const express = require('express')
+let router = express.Router()
 
-const siteUrl = process.env.nikeUrl; // Store URL to siteUrl
+const siteUrl = process.env.nikeUrl || 'https://www.nike.com/'; // Store URL to siteUrl
+const antiCaptchaKey = process.env.anticaptchaAPIKey || '1d0f98f50be1aa14f3b726b3ffdd2ffb' // AntiCaptcha API Key
 
-ac.setAPIKey(process.env.anticaptchaAPIKey); // Check Anticaptcha if Connected
-ac.getBalance()
-    .then(balance => console.log('Nike : my balance is: ' + balance))
-    .catch(error => console.log("Nike : an error with API key: " + error));
+router.get('/', (req, res, next) => {
+    res.set({
+        'Cache-Control': 'no-cache',
+        'Content-Type': 'text/event-stream',
+        'Connection': 'keep-alive'
+      })
+    res.flushHeaders()
+    ac.setAPIKey(antiCaptchaKey); // Check Anticaptcha if Connected
+        ac.getBalance()
+        .then((balance) => {
+            res.write(`Nike : my balance is: ${balance}\n\n`)
+        })
+        .catch((error) => {
+            res.write(`Nike : an error with API key  ${error}`)
+        })
+    checkout(req.query, res)
+    next()
+})
+module.exports = router
 
-module.exports.checkout = checkout; // Export module to be used on other js files
-
-async function checkout(userBotData){ // The function being called on the bot.js to trigger all functions
-    const page = await initBrowser(userBotData);   
+let responseResult = '';
+function sendResponse(res, result){ // Server to client Response
+    console.log(result)
+    res.write(`${result}!\n\n`)
 }
 
-async function initBrowser(userBotData){ // Initialize Browser
+async function getProperty(element, propertyName){ // Get Element Property
+    const property = await element.getProperty(propertyName)
+    return await property.jsonValue()
+}
+async function checkout(userBotData, res){ // Initialize Browser
 
-    let preferredProxyServer = userBotData["preferredProxyServer"];
-    const args = [        
+    sendResponse(res, 'Connecting to the site!!!') // Return update to client
+    let preferredProxyServer = userBotData["preferredProxyServer"] // Set proxy server
+
+    const args = [
         '--proxy-server=socks5://' + preferredProxyServer,
-        '--flag-switches-begin',        
-        '--disable-infobars',
+        '--no-sandbox',
+        '--disbale-setuid-sandbox',
         '--disable-web-security',
-        '--disable-features=OutOfBlinkCors',
-        '--disable-features=IsolateOrigins',
-        ' --disable-site-isolation-trials',
-        '--flag-switches-end'
-    ];
+        '--ignore-certificate-errors',
+        '--allow-running-insecure-content',
+        '--disable-extentions',
+        '--disbale=gpu',
+        '--disable-dev-shm-usage',
+        '--allow-file-access-from-files',
+        '--allow-file-access',
+        '--allow-cross-origin-auth-prompt',
+    ]
+    const options = {
+        slowMo: 50,
+        headless: false,       
+        ignoreDefaultArgs: ["--enable-automation"], 
+        ignoreHTTPSErrors: true,      
+        args,
+        executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+    }
 
-    const options = {        
-        headless: false,
-        slowMo: 30,
-        ignoreHTTPSErrors: true,
-        args
-    };
-    // Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4512.0 Safari/537.36
-    const browser = await puppeteer.launch(options) // Launch options
-    const context = await browser.createIncognitoBrowserContext() // Launch Incognito    
-    const page = await context.newPage() // Create New Incognito Page
-    await page.setBypassCSP(true)
+    const browser = await puppeteer.launch(options)
+    const context = await browser.createIncognitoBrowserContext() // Use Incognito Browser
+    const page = await context.newPage()
+    await page.evaluateOnNewDocument(() => {delete navigator.__proto__.webdriver;});
+     // Bypass hairline feature
+     await page.evaluateOnNewDocument(() => {
+        // store the existing descriptor
+        const elementDescriptor = Object.getOwnPropertyDescriptor(
+          HTMLElement.prototype,
+          "offsetHeight"
+        );  
+        // redefine the property with a patched descriptor
+        Object.defineProperty(HTMLDivElement.prototype, "offsetHeight", {
+          ...elementDescriptor,
+          get: function() {
+            if (this.id === "modernizr") {
+              return 1;
+            }
+            // @ts-ignore
+            return elementDescriptor.get.apply(this);
+          },
+        });
+    });
 
-    await page.setUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4182.0 Safari/537.36");
+    await page.setExtraHTTPHeaders({
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.131 Safari/537.36',
+        'upgrade-insecure-requests': '1',
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
+        'accept-encoding': 'gzip, deflate, br',
+        'accept-language': 'en-US,en;q=0.9,en;q=0.8'
+    })
 
-    const pages = await browser.pages(); // Check Pages
-    if (pages.length > 1) { await pages[0].close(); } // Close unused page    
-    await page.setViewport({ width: 1920, height: 912, deviceScaleFactor: 1, }); // Set page viewport
+    const pages = await browser.pages()
+    if (pages.length > 1) { await pages[0].close() } // Close unused pages
+    await page.setViewport({ width: 1920, height: 912, deviceScaleFactor: 1, }) // Set page viewport
+    await page.setDefaultTimeout(0) // Set timeout to 0
 
-    page.setDefaultNavigationTimeout(0); // Set page timeout to NULL
-    page.setDefaultTimeout(0); // Set page timeout to NULL
+    // const goto = await page.goto('https://bot.sannysoft.com/', {waitUntil: 'networkidle2', timeout: 0});
+    const goto = await page.goto(siteUrl, {waitUntil: 'networkidle2', timeout: 0});
 
-    await page.goto(siteUrl, {waitUntil: 'load', timeout: 0}); // Go to URL
-
-    await searchProduct(page, userBotData); // Call searchProduct function to start working
-    await page.screenshot({path: 'buddy-screenshot.png'});
+    await searchProduct(page, userBotData, res); // Call searchProduct function to start working
     await browser.close() // Close Browser
 }
 
@@ -63,7 +113,7 @@ async function getProperty(element, propertyName){ // Get Element property funct
     return await property.jsonValue()
 }
 
-async function searchProduct(page, userBotData){
+async function searchProduct(page, userBotData, res){
     var preferredCategoryName = userBotData['preferredCategoryName']
     var preferredSKU = userBotData['preferredSKU']
     var preferredTitle = userBotData['preferredTitle']
