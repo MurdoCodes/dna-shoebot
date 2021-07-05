@@ -2,7 +2,7 @@ const express = require('express')
 const app = express()
 const dotenv = require('dotenv').config();
 const supreme = require("./shop/supreme");
-const nike = require("./shop/nike");
+// const nike = require("./shop/nike");
 
 
 app.get('/', async (req, res) => {
@@ -13,7 +13,7 @@ app.use(express.json())
 
 app.use('/api/store/supreme/', supreme) // supreme route
 
-app.use('/api/store/nike/', nike) // nike route
+// app.use('/api/store/nike/', nike) // nike route
 
 // PORT
 const PORT = process.env.PORT || 5000; // Declare env port

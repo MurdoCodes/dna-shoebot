@@ -1,7 +1,21 @@
-const puppeteer = require('puppeteer')
+const puppeteer = require('puppeteer-extra')
+const StealthPlugin = require('puppeteer-extra-plugin-stealth')
+const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker')
+const pluginProxy = require('puppeteer-extra-plugin-proxy');
 const ac = require('@antiadmin/anticaptchaofficial')
 const express = require('express')
 let router = express.Router()
+
+puppeteer.use(StealthPlugin())
+puppeteer.use(AdblockerPlugin({ blockTrackers: true }))
+puppeteer.use(pluginProxy({
+  address: 'zproxy.lum-superproxy.io',
+  port: 22225,
+  credentials: {
+    username: 'lum-customer-c_35009731-zone-shoebot',
+    password: '_2w09h+1%+*r',
+  }
+}));
 
 const antiCaptchaKey = process.env.anticaptchaAPIKey || '1d0f98f50be1aa14f3b726b3ffdd2ffb' // AntiCaptcha API Key
 const siteUrl = process.env.supremeUrl || 'https://supremenewyork.com/shop/all/' // Store URL
@@ -43,60 +57,34 @@ async function checkout(userBotData, res){
     const url = siteUrl + userBotData["preferredCategoryName"] // Add Category name to the url to scrape
     let preferredProxyServer = userBotData["preferredProxyServer"] // Set proxy server
 
-    const args = [
-        '--proxy-server=socks5://' + preferredProxyServer,
-        '--no-sandbox',
-        '--disbale-setuid-sandbox',
-        '--disable-web-security',
-        '--ignore-certificate-errors',
-        '--allow-running-insecure-content',
-        '--disable-extentions',
-        '--disbale=gpu',
-        '--disable-dev-shm-usage',
-        '--allow-file-access-from-files',
-        '--allow-file-access',
-        '--allow-cross-origin-auth-prompt',
-    ]
+    // const args = [
+    //     '--proxy-server=socks5://' + preferredProxyServer,
+    //     // '--no-sandbox',
+    //     // '--disbale-setuid-sandbox',
+    //     // '--disable-infobars',
+    //     // '--window-position=0,0',
+    //     // '--ignore-certifcate-errors',
+    //     // '--ignore-certifcate-errors-spki-list',
+    //     // '--disable-web-security',
+    //     // '--allow-running-insecure-content',
+    //     // '--disable-extentions',
+    //     // '--disbale=gpu',
+    //     // '--disable-dev-shm-usage',
+    //     // '--allow-file-access',
+    //     //  '--allow-file-access-from-files',   
+    //     // '--allow-cross-origin-auth-prompt',
+    // ]
     const options = {
         slowMo: 50,
         headless: false,       
         ignoreDefaultArgs: ["--enable-automation"], 
-        ignoreHTTPSErrors: true,      
-        args,
-        executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+        ignoreHTTPSErrors: true
+        // executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe'
     }
 
     const browser = await puppeteer.launch(options)
     const context = await browser.createIncognitoBrowserContext() // Use Incognito Browser
     const page = await context.newPage()
-    await page.evaluateOnNewDocument(() => {delete navigator.__proto__.webdriver;});
-     // Bypass hairline feature
-     await page.evaluateOnNewDocument(() => {
-        // store the existing descriptor
-        const elementDescriptor = Object.getOwnPropertyDescriptor(
-          HTMLElement.prototype,
-          "offsetHeight"
-        );  
-        // redefine the property with a patched descriptor
-        Object.defineProperty(HTMLDivElement.prototype, "offsetHeight", {
-          ...elementDescriptor,
-          get: function() {
-            if (this.id === "modernizr") {
-              return 1;
-            }
-            // @ts-ignore
-            return elementDescriptor.get.apply(this);
-          },
-        });
-    });
-
-    await page.setExtraHTTPHeaders({
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.131 Safari/537.36',
-        'upgrade-insecure-requests': '1',
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
-        'accept-encoding': 'gzip, deflate, br',
-        'accept-language': 'en-US,en;q=0.9,en;q=0.8'
-    })
 
     const pages = await browser.pages()
     if (pages.length > 1) { await pages[0].close() } // Close unused pages
@@ -104,6 +92,7 @@ async function checkout(userBotData, res){
     await page.setDefaultTimeout(0) // Set timeout to 0
 
     // const goto = await page.goto('https://bot.sannysoft.com/', {waitUntil: 'networkidle2', timeout: 0});
+    // const goto = await page.goto('https://arh.antoinevastel.com/bots/areyouheadless', {waitUntil: 'networkidle2', timeout: 0});
     const goto = await page.goto(url, {waitUntil: 'networkidle2', timeout: 0});
     
     if(goto === null){
@@ -139,6 +128,7 @@ async function selectProductByName(page, userBotData, res){ // Select Available 
     const productMapping = productElement.map(async (element) => { // Map all the product and find matched product
         const productTitle = await getProperty(element, 'innerText') // Get element Text
         productText = productTitle.replace(/(\r\n|\n|\r)/gm,"");
+
         if( productText === preferredTitle){ // If title is equal to PreferredTitle proceed
             await element.click()
             return true   
@@ -307,29 +297,29 @@ async function checkoutFormPage(page, userBotData, res){
         sendResponse(res, responseResult)
     }
 
-    // await page.waitForSelector("input[name='order[billing_city]']")
-    // const order_billing_city = await page.evaluate(() => {
-    //     const element = document.querySelector("input[name='order[billing_city]']");        
-    //     return element;
-    // });
-    // if(order_billing_city !== null){
-    //     await page.type("input[name='order[billing_city]']", preferredOrder_billing_city); // Write City
-    //     await page.waitForTimeout(1000)
-    //     responseResult = `Successfully written City...`
-    //     sendResponse(res, responseResult)
-    // }
+    await page.waitForSelector("input[name='order[billing_city]']")
+    const order_billing_city = await page.evaluate(() => {
+        const element = document.querySelector("input[name='order[billing_city]']");        
+        return element;
+    });
+    if(order_billing_city !== null){
+        await page.type("input[name='order[billing_city]']", preferredOrder_billing_city); // Write City
+        await page.waitForTimeout(1000)
+        responseResult = `Successfully written City...`
+        sendResponse(res, responseResult)
+    }
     
-    // await page.waitForSelector("select#order_billing_state")
-    // const order_billing_state = await page.evaluate(() => {
-    //     const element = document.querySelector("select#order_billing_state");        
-    //     return element;
-    // });
-    // if(order_billing_state !== null){
-    //     await page.select("select#order_billing_state", preferredOrder_billing_state); // Select State
-    //     await page.waitForTimeout(1000)
-    //     responseResult = `Successfully selected State...`
-    //     sendResponse(res, responseResult)
-    // }
+    await page.waitForSelector("select#order_billing_state")
+    const order_billing_state = await page.evaluate(() => {
+        const element = document.querySelector("select#order_billing_state");        
+        return element;
+    });
+    if(order_billing_state !== null){
+        await page.select("select#order_billing_state", preferredOrder_billing_state); // Select State
+        await page.waitForTimeout(1000)
+        responseResult = `Successfully selected State...`
+        sendResponse(res, responseResult)
+    }
 
     await page.waitForSelector("input[id='rnsnckrn']")
     const rnsnckrn = await page.evaluate(() => {
@@ -485,20 +475,17 @@ async function confirmationPage(page, userBotData, res){
     await page.waitForSelector("#confirmation")
 
     const successMessage = await page.evaluate(() => {
-        const element = document.querySelector("#confirmation")
-        let attribute = element.getAttribute('class')
-        return attribute;
+        const element = document.querySelector('#confirmation p').innerText.includes("Thank you")
+        return element
     });
 
-    if(successMessage === 'failed'){
-        sendResponse(res, `Failed to checkout product ${preferredTitle}.. Retrying...`)
-        // await page.goBack()
-        // await page.goBack()
-        // await addToCart(page, userBotData, res)
-        // await page.close()
-        // checkout(userBotData, res)
-    }else{
+    console.log(successMessage)
+
+    if(successMessage === true){
         sendResponse(res, `Succeffully Purchased the item ${preferredTitle}...`)
-        // await page.close()
+        await page.close()   
+    }else{        
+        sendResponse(res, `Failed to checkout product ${preferredTitle}...`)
+        await page.close()
     }
 }

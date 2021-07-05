@@ -1,7 +1,21 @@
-const puppeteer = require('puppeteer');
-const ac = require('@antiadmin/anticaptchaofficial');
-const express = require('express')
-let router = express.Router()
+// const puppeteer = require('puppeteer-extra')
+// const StealthPlugin = require('puppeteer-extra-plugin-stealth')
+// const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker')
+// const pluginProxy = require('puppeteer-extra-plugin-proxy');
+// const ac = require('@antiadmin/anticaptchaofficial')
+// const express = require('express')
+// let router = express.Router()
+
+// puppeteer.use(StealthPlugin())
+// puppeteer.use(AdblockerPlugin({ blockTrackers: true }))
+// puppeteer.use(pluginProxy({
+//   address: 'zproxy.lum-superproxy.io',
+//   port: 22225,
+//   credentials: {
+//     username: 'lum-customer-c_35009731-zone-shoebot',
+//     password: '_2w09h+1%+*r',
+//   }
+// }));
 
 const siteUrl = process.env.nikeUrl || 'https://www.nike.com/'; // Store URL to siteUrl
 const antiCaptchaKey = process.env.anticaptchaAPIKey || '1d0f98f50be1aa14f3b726b3ffdd2ffb' // AntiCaptcha API Key
@@ -36,65 +50,23 @@ async function getProperty(element, propertyName){ // Get Element Property
     const property = await element.getProperty(propertyName)
     return await property.jsonValue()
 }
+
 async function checkout(userBotData, res){ // Initialize Browser
 
     sendResponse(res, 'Connecting to the site!!!') // Return update to client
     let preferredProxyServer = userBotData["preferredProxyServer"] // Set proxy server
 
-    const args = [
-        '--proxy-server=socks5://' + preferredProxyServer,
-        '--no-sandbox',
-        '--disbale-setuid-sandbox',
-        '--disable-web-security',
-        '--ignore-certificate-errors',
-        '--allow-running-insecure-content',
-        '--disable-extentions',
-        '--disbale=gpu',
-        '--disable-dev-shm-usage',
-        '--allow-file-access-from-files',
-        '--allow-file-access',
-        '--allow-cross-origin-auth-prompt',
-    ]
     const options = {
         slowMo: 50,
         headless: false,       
         ignoreDefaultArgs: ["--enable-automation"], 
-        ignoreHTTPSErrors: true,      
-        args,
-        executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+        ignoreHTTPSErrors: true
+        // executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe'
     }
 
     const browser = await puppeteer.launch(options)
     const context = await browser.createIncognitoBrowserContext() // Use Incognito Browser
     const page = await context.newPage()
-    await page.evaluateOnNewDocument(() => {delete navigator.__proto__.webdriver;});
-     // Bypass hairline feature
-     await page.evaluateOnNewDocument(() => {
-        // store the existing descriptor
-        const elementDescriptor = Object.getOwnPropertyDescriptor(
-          HTMLElement.prototype,
-          "offsetHeight"
-        );  
-        // redefine the property with a patched descriptor
-        Object.defineProperty(HTMLDivElement.prototype, "offsetHeight", {
-          ...elementDescriptor,
-          get: function() {
-            if (this.id === "modernizr") {
-              return 1;
-            }
-            // @ts-ignore
-            return elementDescriptor.get.apply(this);
-          },
-        });
-    });
-
-    await page.setExtraHTTPHeaders({
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.131 Safari/537.36',
-        'upgrade-insecure-requests': '1',
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
-        'accept-encoding': 'gzip, deflate, br',
-        'accept-language': 'en-US,en;q=0.9,en;q=0.8'
-    })
 
     const pages = await browser.pages()
     if (pages.length > 1) { await pages[0].close() } // Close unused pages
