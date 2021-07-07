@@ -1,18 +1,16 @@
 const puppeteer = require('puppeteer-extra')
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')
-const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker')
 const pluginProxy = require('puppeteer-extra-plugin-proxy');
 const ac = require('@antiadmin/anticaptchaofficial')
 const express = require('express')
 let router = express.Router()
 
 puppeteer.use(StealthPlugin())
-puppeteer.use(AdblockerPlugin({ blockTrackers: true }))
 puppeteer.use(pluginProxy({
   address: 'zproxy.lum-superproxy.io',
   port: 22225,
   credentials: {
-    username: 'lum-customer-c_35009731-zone-shoebot',
+    username: 'lum-customer-c_35009731-zone-shoebot-country-us',
     password: '_2w09h+1%+*r',
   }
 }));
@@ -53,27 +51,8 @@ async function getProperty(element, propertyName){ // Get Element Property
 
 async function checkout(userBotData, res){
     sendResponse(res, 'Connecting to the site!!!') // Return update to client
-
     const url = siteUrl + userBotData["preferredCategoryName"] // Add Category name to the url to scrape
-    let preferredProxyServer = userBotData["preferredProxyServer"] // Set proxy server
 
-    // const args = [
-    //     '--proxy-server=socks5://' + preferredProxyServer,
-    //     // '--no-sandbox',
-    //     // '--disbale-setuid-sandbox',
-    //     // '--disable-infobars',
-    //     // '--window-position=0,0',
-    //     // '--ignore-certifcate-errors',
-    //     // '--ignore-certifcate-errors-spki-list',
-    //     // '--disable-web-security',
-    //     // '--allow-running-insecure-content',
-    //     // '--disable-extentions',
-    //     // '--disbale=gpu',
-    //     // '--disable-dev-shm-usage',
-    //     // '--allow-file-access',
-    //     //  '--allow-file-access-from-files',   
-    //     // '--allow-cross-origin-auth-prompt',
-    // ]
     const options = {
         slowMo: 50,
         headless: false,       
@@ -91,8 +70,6 @@ async function checkout(userBotData, res){
     await page.setViewport({ width: 1920, height: 912, deviceScaleFactor: 1, }) // Set page viewport
     await page.setDefaultTimeout(0) // Set timeout to 0
 
-    // const goto = await page.goto('https://bot.sannysoft.com/', {waitUntil: 'networkidle2', timeout: 0});
-    // const goto = await page.goto('https://arh.antoinevastel.com/bots/areyouheadless', {waitUntil: 'networkidle2', timeout: 0});
     const goto = await page.goto(url, {waitUntil: 'networkidle2', timeout: 0});
     
     if(goto === null){
@@ -102,7 +79,6 @@ async function checkout(userBotData, res){
         sendResponse(res, 'Succesfully accessed the site url...')
         await page.waitForSelector(".sold_out_tag")
         await removeSoldOutProduct(page, userBotData, res)
-        // await browser.close()     
     }
 }
 
@@ -119,41 +95,45 @@ async function removeSoldOutProduct(page, userBotData, res){ // Remove sold out 
     await selectProductByName(page, userBotData, res) // Proceed to function selecting of product
 }
 
-
 async function selectProductByName(page, userBotData, res){ // Select Available Product By Category
-    let preferredTitle = userBotData["preferredTitle"];
+    let preferredTitle = userBotData["preferredTitle"]
+    let preferredColor = userBotData["preferredColor"]
 
     await page.waitForSelector("div.product-name > a[class='name-link']") // Wait for selector to appear
     const productElement = await page.$$("div.product-name > a[class='name-link']") // Get all a product link element
-    const productMapping = productElement.map(async (element) => { // Map all the product and find matched product
-        const productTitle = await getProperty(element, 'innerText') // Get element Text
-        productText = productTitle.replace(/(\r\n|\n|\r)/gm,"");
+    const productColorElement = await page.$$("div.product-style > a[class='name-link']") // Get all a product link element
+    
+    let found 
+    for(var i = 0; i < productElement.length; i++){
+        const productName = await (await productElement[i].getProperty('innerText')).jsonValue()
+        const productColor = await (await productColorElement[i].getProperty('innerText')).jsonValue();
+        productText = productName.replace(/(\r\n|\n|\r)/gm,"")
 
-        if( productText === preferredTitle){ // If title is equal to PreferredTitle proceed
-            await element.click()
-            return true   
-        }else{
-            return false
+        if(productText === preferredTitle && productColor === preferredColor){
+            await productColorElement[i].click()
+            found = true
+            break
+        }else {
+            found = false
         }
-    })
-
-    await Promise.all(productMapping)
-    .then(values => {
+    }
+    if(found === false){
+        sendResponse(res, `Product ${preferredTitle} with the color of ${preferredColor} is no longer available...`)
+        sendResponse(res, `Process Stopped...`)
+        await page.close()
+    }else{
         sendResponse(res, `Successfully selected the product ${preferredTitle}`)
         addToCart(page, userBotData, res)
-    })
-    .catch(error => {
-        sendResponse(res, `Product ${preferredTitle} is no longer available... Process stopped!! ${error.message}`)
-    });     
+    }
 }
 
 // Bot on Add To Cart Page
 async function addToCart(page, userBotData, res){
 
-    let preferredTitle = userBotData["preferredTitle"];
+    let preferredTitle = userBotData["preferredTitle"]
     let preferredColor = userBotData["preferredColor"];
-    let preferredSize = userBotData["preferredSize"];
-    let preferredQuantity = userBotData["preferredQuantity"];
+    let preferredSize = userBotData["preferredSize"]
+    let preferredQuantity = userBotData["preferredQuantity"]
             
     // If color option exist
     await page.waitForSelector("button[data-style-name='"+preferredColor+"']")
@@ -174,16 +154,14 @@ async function addToCart(page, userBotData, res){
     if(sizeElement !== null){
         await page.waitForSelector('select[aria-labelledby="select-size"]')
         const sizeElement1 = await page.$$('select[aria-labelledby="select-size"] > option') 
-        const sizeMapping = sizeElement1.map(async (element, res) => {
+        const sizeMapping = sizeElement1.map(async (element) => {
             const size = await getProperty(element, 'innerText')
             if( size === preferredSize ){
                 const value = await getProperty(element, 'value')                
                 await page.select('select[aria-labelledby="select-size"]', value)
-                responseResult = `${size} size succesfully selected... `
-                sendResponse(res, responseResult)
+                sendResponse(res, `${size} size succesfully selected... `)
             }else{
-                responseResult = `${size} size not found... Process Stopped!!!`
-                sendResponse(res, responseResult)
+                sendResponse(res, `${size} size not found... Process Stopped!!!`)
             }
         })
     }
@@ -200,25 +178,26 @@ async function addToCart(page, userBotData, res){
         sendResponse(res, responseResult)
     }
 
-    // If Add To Cart Button Exist    
+    // If Add To Cart Button Exist  
     const addToCartElement = await page.evaluate(() => {
-        const element = document.querySelector("input[type='submit']");        
+        const element = document.querySelector("input[value='add to cart']");        
         return element;
     });
     if(addToCartElement !== null){
-        await page.waitForSelector("input[type='submit']")
+        await page.waitForSelector("input[value='add to cart']")
         await page.$eval("input[value='add to cart']", elem => elem.click()) // add to cart button
+
         await page.waitForSelector("a[class='button checkout']", {visible: true})
         await page.$eval("a[class='button checkout']", elem => elem.click()) // checkout button
+
         try {
-            responseResult = `${preferredTitle} product successfully added to cart...`
-            sendResponse(res, responseResult)
+            sendResponse(res, `${preferredTitle} product successfully added to cart...`)
+            await page.waitForSelector('input#order_billing_name');
             checkoutFormPage(page, userBotData, res)
         } catch (e) {
-            await page.waitForSelector('input#order_billing_name');
-            responseResult = `Product Does Not Exist... Retrying to select product ${preferredTitle}!!!`
-            sendResponse(res, responseResult)
-            checkoutFormPage(page, userBotData, res)           
+            sendResponse(res, `${preferredTitle} Product Does Not Exist...`)
+            sendResponse(res, `End Transaction!!!`)
+            await page.close()
         }
     }
 }
@@ -474,18 +453,35 @@ async function confirmationPage(page, userBotData, res){
     let preferredTitle = userBotData['preferredTitle']
     await page.waitForSelector("#confirmation")
 
+    // Check if page redirects to duplicate page
+    const duplicate = await page.evaluate(() => {
+        const element = document.querySelector('.cart_page');        
+        return element;
+    })
+    if(duplicate !== null){
+        sendResponse(res, `You have previously ordered this item ${preferredTitle}. There is a limit of 1 style per product`)
+        sendResponse(res, `Continue checking out...`) 
+        await page.waitForSelector("a[class='button checkout']")
+        await page.$eval("a[class='button checkout']", elem => elem.click())
+
+        await page.waitForSelector('input#order_billing_name');
+        checkoutFormPage(page, userBotData, res)
+    }
+
+
+    // Check if page redirects to success page
     const successMessage = await page.evaluate(() => {
         const element = document.querySelector('#confirmation p').innerText.includes("Thank you")
         return element
-    });
-
-    console.log(successMessage)
-
-    if(successMessage === true){
-        sendResponse(res, `Succeffully Purchased the item ${preferredTitle}...`)
-        await page.close()   
-    }else{        
-        sendResponse(res, `Failed to checkout product ${preferredTitle}...`)
-        await page.close()
+    })
+    if(successMessage !== null){
+        if(successMessage === true){
+            sendResponse(res, `Succeffully Purchased the item ${preferredTitle}...`)
+            await page.close()   
+        }else{        
+            sendResponse(res, `Failed to checkout product ${preferredTitle}...`)
+            await page.close()
+        }
     }
+    
 }

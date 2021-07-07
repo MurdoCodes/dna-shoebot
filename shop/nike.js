@@ -1,21 +1,22 @@
-// const puppeteer = require('puppeteer-extra')
-// const StealthPlugin = require('puppeteer-extra-plugin-stealth')
-// const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker')
-// const pluginProxy = require('puppeteer-extra-plugin-proxy');
-// const ac = require('@antiadmin/anticaptchaofficial')
-// const express = require('express')
-// let router = express.Router()
+const puppeteer = require('puppeteer-extra')
+const StealthPlugin = require('puppeteer-extra-plugin-stealth')
+const pluginProxy = require('puppeteer-extra-plugin-proxy');
+const ac = require('@antiadmin/anticaptchaofficial')
+const fs = require('fs');
+const express = require('express')
+let router = express.Router()
 
-// puppeteer.use(StealthPlugin())
-// puppeteer.use(AdblockerPlugin({ blockTrackers: true }))
-// puppeteer.use(pluginProxy({
-//   address: 'zproxy.lum-superproxy.io',
-//   port: 22225,
-//   credentials: {
-//     username: 'lum-customer-c_35009731-zone-shoebot',
-//     password: '_2w09h+1%+*r',
-//   }
-// }));
+const {installMouseHelper} = require('../extras/install_mouse_helper');
+
+puppeteer.use(StealthPlugin())
+puppeteer.use(pluginProxy({
+  address: 'zproxy.lum-superproxy.io',
+  port: 22225,
+  credentials: {
+    username: 'lum-customer-c_35009731-zone-shoebot-country-us',
+    password: '_2w09h+1%+*r',
+  }
+}));
 
 const siteUrl = process.env.nikeUrl || 'https://www.nike.com/'; // Store URL to siteUrl
 const antiCaptchaKey = process.env.anticaptchaAPIKey || '1d0f98f50be1aa14f3b726b3ffdd2ffb' // AntiCaptcha API Key
@@ -54,16 +55,20 @@ async function getProperty(element, propertyName){ // Get Element Property
 async function checkout(userBotData, res){ // Initialize Browser
 
     sendResponse(res, 'Connecting to the site!!!') // Return update to client
-    let preferredProxyServer = userBotData["preferredProxyServer"] // Set proxy server
-
+    const url = siteUrl // Add Category name to the url to scrape
+    const args = [
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins',
+        ' --disable-site-isolation-trials'
+    ]
     const options = {
         slowMo: 50,
         headless: false,       
         ignoreDefaultArgs: ["--enable-automation"], 
-        ignoreHTTPSErrors: true
+        ignoreHTTPSErrors: true,
+        args
         // executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe'
     }
-
     const browser = await puppeteer.launch(options)
     const context = await browser.createIncognitoBrowserContext() // Use Incognito Browser
     const page = await context.newPage()
@@ -73,11 +78,26 @@ async function checkout(userBotData, res){ // Initialize Browser
     await page.setViewport({ width: 1920, height: 912, deviceScaleFactor: 1, }) // Set page viewport
     await page.setDefaultTimeout(0) // Set timeout to 0
 
-    // const goto = await page.goto('https://bot.sannysoft.com/', {waitUntil: 'networkidle2', timeout: 0});
-    const goto = await page.goto(siteUrl, {waitUntil: 'networkidle2', timeout: 0});
+    // const cookies = fs.readFileSync('httpbin-cookies.json', 'utf8');
 
-    await searchProduct(page, userBotData, res); // Call searchProduct function to start working
-    await browser.close() // Close Browser
+    // const deserializedCookies = JSON.parse(cookies);
+    // await page.setCookie(...deserializedCookies);
+    await installMouseHelper(page)
+    const goto = await page.goto(url, {waitUntil: 'networkidle2', timeout: 0});
+
+    // const cookies = await page.cookies();
+    // const cookieJson = JSON.stringify(cookies);
+
+    // And save this data to a JSON file
+    // fs.writeFileSync('httpbin-cookies.json', cookieJson);
+    
+    if(goto === null){
+        sendResponse(res, 'Cant get the site url... Process Stopped!!!')
+        // await browser.close()
+    }else{
+        await searchProduct(page, userBotData, res)
+    }
+
 }
 
 async function getProperty(element, propertyName){ // Get Element property function
@@ -92,7 +112,7 @@ async function searchProduct(page, userBotData, res){
     var preferredGender = userBotData['preferredGender']
 
     if(preferredTitle){ // if user only added Product Title
-
+        sendResponse(res, `Searching Product ${preferredTitle}...`)
         await page.$eval("a[aria-label='"+preferredCategoryName+"']", elem => elem.click())// Click preferred category
         await page.waitForTimeout(2000)
 
@@ -105,16 +125,17 @@ async function searchProduct(page, userBotData, res){
         const productMapping = productCard.map(async (productElement) => { // Map all the product and find matched product
             const productTitle = await getProperty(productElement, 'innerText') // Get element Text
             if( productTitle === preferredTitle){ // If title is equal to PreferredTitle proceed
+                sendResponse(res, `Product Found!!!`)
                 await productElement.click();
-                await productPage(page, userBotData)
+                await productPage(page, userBotData, res)
             }else{
-                return "Item Not Found!!!"
+                sendResponse(res, `Product Not Found!!!`)
             }
         })
         await Promise.all(productMapping)        
 
     }else if(preferredSKU){ // if user only added Product SKU
-
+        sendResponse(res, `Searching Product ${preferredSKU}...`)
         await page.type("input[id='VisualSearchInput']", preferredSKU); // Write SKU on the search bar
         await page.waitForTimeout(2000)
 
@@ -125,13 +146,14 @@ async function searchProduct(page, userBotData, res){
         const productCard = await page.$$("a[class='product-card__link-overlay']") // Get all a product link element
         const productMapping = productCard.map(async (productElement) => { // Map all the product and find matched product
             const productTitle = await getProperty(productElement, 'innerText') // Get element Text
+            sendResponse(res, `Product Found!!!`)
             await productElement.click();
-            await productPage(page, userBotData)
+            await productPage(page, userBotData, res)
         })
         await Promise.all(productMapping)
 
     }else if(preferredTitle && preferredSKU ){ // if user only added Both Product Title and SKU
-
+        sendResponse(res, `Searching Product ${preferredTitle}/${preferredSKU}...`)
         await page.type("input[id='VisualSearchInput']", preferredSKU); // Write SKU on the search bar
         await page.waitForTimeout(2000)
 
@@ -142,8 +164,9 @@ async function searchProduct(page, userBotData, res){
         const productCard = await page.$$("a[class='product-card__link-overlay']") // Get all a product link element
         const productMapping = productCard.map(async (productElement) => { // Map all the product and find matched product
             const productTitle = await getProperty(productElement, 'innerText') // Get element Text
+            sendResponse(res, `Product Found!!!`)
             await productElement.click();
-            await productPage(page, userBotData)
+            await productPage(page, userBotData, res)
         })
         await Promise.all(productMapping)
 
@@ -151,7 +174,16 @@ async function searchProduct(page, userBotData, res){
 
 }
 
-async function productPage(page, userBotData){
+async function productPage(page, userBotData, res){
+
+    // const cookies = await page.cookies();
+    // const cookieJson = JSON.stringify(cookies);
+    // fs.writeFileSync('cookies.json', cookieJson);
+
+    const cookies = fs.readFileSync('cookies.json', 'utf8');
+
+    const deserializedCookies = JSON.parse(cookies);
+    await page.setCookie(...deserializedCookies);
 
     const preferredSize = userBotData['preferredSize']
 
@@ -160,9 +192,10 @@ async function productPage(page, userBotData){
     const sizeMapping = sizeCard.map(async (sizeElement) => { // Map all the sizes and find matched size
         const productSize = await getProperty(sizeElement, 'innerText') // Get element Text
         if( productSize === preferredSize){ // If size is equal to preferredSize proceed
+            sendResponse(res, `Size ${preferredSize} Selected...`)
             await sizeElement.click();
         }else{
-            console.log("Size Not Found!!!")
+            sendResponse(res, `Size ${preferredSize} not available...`)
         }
     })
     await Promise.all(sizeMapping)
