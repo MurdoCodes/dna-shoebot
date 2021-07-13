@@ -1,0 +1,71 @@
+<div id="mytaskForm" class="sideForm">
+    <div class="sideForm-container">
+        
+        <div class="heading">
+            Create Task
+        </div>
+        <div>
+            <form class="c-user-form">
+                <div class="form-group">
+                    <label for="category">CATEGORY</label>
+                    <input type="text" class="form-control" id="category" aria-describedby="">
+                </div>
+                <div class="form-group">
+                    <label for="product">PRODUCT</label>
+                    <input type="text" class="form-control" id="product" aria-describedby="">
+                </div>
+                <div class="flex-form">
+                    
+                <div class="form-group width-50">
+                    <label for="size">SIZE</label>
+                    <input type="text" class="form-control" id="size" aria-describedby="">
+                </div>
+                <div class="form-group width-50">
+                    <label class="form-check-label" for="sizecb">
+                      Random Size
+                    </label>
+                    <div style="padding-top: 10px;">
+                        <input style="margin-left: 0px;width: 27px;height: 27px;border: 1px solid #ced4da;
+                        border-radius: .25rem;" class="form-check-input" type="checkbox" value="" id="sizecb">
+                    </div>
+                </div>
+                </div>
+                
+                <div class="flex-form">
+                    
+                    <div class="form-group width-50">
+                        <label for="color">COLOR</label>
+                        <select class="form-select" aria-label="Default select example">
+                            <option selected></option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                        </select>
+                    </div>
+                    <div class="form-group width-50">
+                        <label for="quantity">QUANTITY</label>
+                        <select class="form-select" aria-label="Default select example">
+                            <option selected></option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="username">USER NAME</label>
+                    <input type="text" class="form-control" id="username" aria-describedby="">
+                </div>
+                <div class="form-group">
+                    <label for="proxy">PROXY</label>
+                    <input type="text" class="form-control" id="proxy" aria-describedby="">
+                </div>
+                </form>
+        </div>
+        <div style="display: flex;justify-content: flex-end;">
+            
+        <button href="javascript:void(0)" class="blue-btn" onclick="closeTaskForm()" style="margin-left: 0px!important;">Cancel</button>
+        <button href="javascript:void(0)" class="yellow-btn">Create</button>
+        </div>
+    </div>
+</div>
