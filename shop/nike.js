@@ -6,17 +6,15 @@ const fs = require('fs');
 const express = require('express')
 let router = express.Router()
 
-const {installMouseHelper} = require('../extras/install_mouse_helper');
-
 puppeteer.use(StealthPlugin())
 puppeteer.use(pluginProxy({
-  address: 'zproxy.lum-superproxy.io',
-  port: 22225,
-  credentials: {
-    username: 'lum-customer-c_35009731-zone-shoebot-country-us',
-    password: '_2w09h+1%+*r',
-  }
-}));
+    address: 'zproxy.lum-superproxy.io',
+    port: 22225,
+    credentials: {
+      username: 'lum-customer-c_35009731-zone-dnashoebot-country-us',
+      password: 'jiv2w#%o42of',
+    }
+  }));
 
 const siteUrl = process.env.nikeUrl || 'https://www.nike.com/'; // Store URL to siteUrl
 const antiCaptchaKey = process.env.anticaptchaAPIKey || '1d0f98f50be1aa14f3b726b3ffdd2ffb' // AntiCaptcha API Key
@@ -64,7 +62,8 @@ async function checkout(userBotData, res){ // Initialize Browser
     const options = {
         slowMo: 50,
         headless: false,       
-        ignoreDefaultArgs: ["--enable-automation"], 
+        // ignoreDefaultArgs: ["--enable-automation"],
+        ignoreDefaultArgs: ["--enable-blink-features=IdleDetection"], 
         ignoreHTTPSErrors: true,
         args
         // executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe'
@@ -78,18 +77,7 @@ async function checkout(userBotData, res){ // Initialize Browser
     await page.setViewport({ width: 1920, height: 912, deviceScaleFactor: 1, }) // Set page viewport
     await page.setDefaultTimeout(0) // Set timeout to 0
 
-    // const cookies = fs.readFileSync('httpbin-cookies.json', 'utf8');
-
-    // const deserializedCookies = JSON.parse(cookies);
-    // await page.setCookie(...deserializedCookies);
-    await installMouseHelper(page)
-    const goto = await page.goto(url, {waitUntil: 'networkidle2', timeout: 0});
-
-    // const cookies = await page.cookies();
-    // const cookieJson = JSON.stringify(cookies);
-
-    // And save this data to a JSON file
-    // fs.writeFileSync('httpbin-cookies.json', cookieJson);
+    const goto = await page.goto(url, {waitUntil: 'networkidle2', timeout: 0})
     
     if(goto === null){
         sendResponse(res, 'Cant get the site url... Process Stopped!!!')
@@ -175,16 +163,6 @@ async function searchProduct(page, userBotData, res){
 }
 
 async function productPage(page, userBotData, res){
-
-    // const cookies = await page.cookies();
-    // const cookieJson = JSON.stringify(cookies);
-    // fs.writeFileSync('cookies.json', cookieJson);
-
-    const cookies = fs.readFileSync('cookies.json', 'utf8');
-
-    const deserializedCookies = JSON.parse(cookies);
-    await page.setCookie(...deserializedCookies);
-
     const preferredSize = userBotData['preferredSize']
 
     await page.waitForSelector("label[class='css-xf3ahq']") // Wait for selector to appear

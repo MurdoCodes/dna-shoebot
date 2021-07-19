@@ -1,76 +1,160 @@
+const http = require('http')
 const puppeteer = require('puppeteer-extra')
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')
-const pluginProxy = require('puppeteer-extra-plugin-proxy');
+const pluginProxy = require('puppeteer-extra-plugin-proxy')
+// const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker')
 const ac = require('@antiadmin/anticaptchaofficial')
+
 const express = require('express')
 let router = express.Router()
 
-puppeteer.use(StealthPlugin())
-puppeteer.use(pluginProxy({
-  address: 'zproxy.lum-superproxy.io',
-  port: 22225,
-  credentials: {
-    username: 'lum-customer-c_35009731-zone-shoebot-country-us',
-    password: '_2w09h+1%+*r',
-  }
-}));
-
 const antiCaptchaKey = process.env.anticaptchaAPIKey || '1d0f98f50be1aa14f3b726b3ffdd2ffb' // AntiCaptcha API Key
 const siteUrl = process.env.supremeUrl || 'https://supremenewyork.com/shop/all/' // Store URL
+
+const { PrivacyApi } = require('privacy.com')
+const privacyApi = new PrivacyApi(process.env.privacyApiKey || '269db36d-8d7f-483a-9031-e861a80cecf4')
+
+/**
+ * Puppeteer Stealth Pre Settings for anti bot detection
+**/ 
+// puppeteer.use(AdblockerPlugin({ blockTrackers: true }))
+puppeteer.use(StealthPlugin())
+puppeteer.use(pluginProxy({
+    address: 'zproxy.lum-superproxy.io',
+    port: 22225,
+    credentials: {
+      username: 'lum-customer-c_35009731-zone-dnashoebot-country-us',
+      password: 'jiv2w#%o42of',
+    }
+  }))
 
 router.get('/', (req, res, next) => {
     res.set({
         'Cache-Control': 'no-cache',
         'Content-Type': 'text/event-stream',
         'Connection': 'keep-alive'
-      });
-      res.flushHeaders();
-    ac.setAPIKey(antiCaptchaKey); // Check Anticaptcha if Connected
-        ac.getBalance()
-        .then((balance) => {
-            res.write(`Supreme : my balance is: ${balance}\n\n`)
-        })
-        .catch((error) => {
-            res.write(`Supreme : an error with API key  ${error}`)
-        });
-    checkout(req.query, res)
+    })
+    res.flushHeaders()
+
+    ac.setAPIKey(antiCaptchaKey)
+    ac.getBalance()
+    .then((balance) => {
+        res.write(`Supreme : my balance is: ${balance}\n\n`)
+    })
+    .catch((error) => {
+        res.write(`Supreme : an error with API key  ${error}`)
+    });
+
+    createCard(req.query, res) // Privay.com check response of create API
+    // let reqQuery = req.query
+    // startProfile(reqQuery, res)
     next()
 })
 module.exports = router // Export module
 
-let responseResult = '';
-function sendResponse(res, result){ // Server to client Response
-    console.log(result)
-    res.write(`${result}!\n\n`)
+async function createCard(userBotData, res){ // Privacy.com 
+
+    const cardParams = {
+        type: "UNLOCKED",
+        memo: "friendly identifier",
+        spend_limit: 1000,
+        spend_limit_duration: "MONTHLY"
+    }    
+    privacyApi
+        .createCard(cardParams)
+        .then((createCardResponse) => {
+            
+            const data = createCardResponse.data
+            let obj = {}
+            obj.preferredCreditCardNumber = data.pan
+            obj.preferredCcnMonth = data.exp_month
+            obj.preferredCcnYear = data.exp_year
+            obj.preferredCcnCVV = data.cvv
+            Object.assign(userBotData, obj)
+
+            sendResponse(res, `Virtual Credit Card Created!!!`)
+            checkout(userBotData, res)
+        })
+        .catch((e) => {
+            const message = e.response.status + " " + e.response.data
+            sendResponse(res, message)
+        })
+
 }
 
-async function getProperty(element, propertyName){ // Get Element Property
-    const property = await element.getProperty(propertyName)
-    return await property.jsonValue()
+async function startProfile(userBotData, res){ // Multi Login Settings
+    //Replace profileId value with existing browser profile ID.
+    let profileId = '2294b154-ceba-4820-ae18-407d2a78862a';
+    // let mlaPort = 35000;
+    let mlaPort = 5001;
+  
+    /*Send GET request to start the browser profile by profileId.
+    Returns web socket as response which should be passed to puppeteer.connect*/
+    http.get(`http://127.0.0.1:${mlaPort}/api/v1/profile/start?automation=true&puppeteer=true&profileId=${profileId}`, (resp) => {
+        let data = '';
+        let ws = '';
+    
+        //Receive response data by chunks
+        resp.on('data', (chunk) => {
+         data += chunk;
+        });
+    
+        /*The whole response data has been received. Handling JSON Parse errors,
+        verifying if ws is an object and contains the 'value' parameter.*/
+        resp.on('end', () => {
+            let ws;
+            try {
+                ws = JSON.parse(data);
+            } catch(err) {
+                console.log(err);
+            }
+            if (typeof ws === 'object' && ws.hasOwnProperty('value')) {
+                console.log(`Browser websocket endpoint: ${ws.value}`);
+                // run(ws.value);
+                run(userBotData, res, ws.value)
+            }
+        });
+  
+    }).on("error", (err) => {
+      console.log(err.message);
+    });
 }
 
-async function checkout(userBotData, res){
+async function checkout(userBotData, res, ws){
     sendResponse(res, 'Connecting to the site!!!') // Return update to client
     const url = siteUrl + userBotData["preferredCategoryName"] // Add Category name to the url to scrape
 
+    const args = ['--no-sandbox']
     const options = {
+        // browserWSEndpoint: ws,
         slowMo: 50,
         headless: false,       
-        ignoreDefaultArgs: ["--enable-automation"], 
-        ignoreHTTPSErrors: true
+        ignoreDefaultArgs: ["--enable-automation", "--enable-blink-features=IdleDetection"],
+        ignoreHTTPSErrors: true,
+        args
         // executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe'
     }
 
+    // const browser = await puppeteer.connect(options) // For MLA
     const browser = await puppeteer.launch(options)
     const context = await browser.createIncognitoBrowserContext() // Use Incognito Browser
     const page = await context.newPage()
 
     const pages = await browser.pages()
     if (pages.length > 1) { await pages[0].close() } // Close unused pages
-    await page.setViewport({ width: 1920, height: 912, deviceScaleFactor: 1, }) // Set page viewport
+    await page.setViewport({ width: 1920, height: 969, deviceScaleFactor: 1, }) // Set page viewport
     await page.setDefaultTimeout(0) // Set timeout to 0
 
-    const goto = await page.goto(url, {waitUntil: 'networkidle2', timeout: 0});
+    await page.evaluateOnNewDocument(() => {
+        delete navigator.__proto__.webdriver;
+    })
+
+    // const goto = await page.goto('https://bot.sannysoft.com/', {waitUntil: 'networkidle2', timeout: 0})
+    // const goto = await page.goto('https://coveryourtracks.eff.org/', {waitUntil: 'networkidle2', timeout: 0})
+    // const goto = await page.goto('https://bot.incolumitas.com/', {waitUntil: 'networkidle2', timeout: 0})
+    // const goto = await page.goto('https://niespodd.github.io/browser-fingerprinting/', {waitUntil: 'networkidle2', timeout: 0})
+    // const goto = await page.goto('https://whoer.net/', {waitUntil: 'networkidle2', timeout: 0})
+    const goto = await page.goto(url, {waitUntil: 'networkidle2', timeout: 0})
     
     if(goto === null){
         sendResponse(res, 'Cant get the site url... Process Stopped!!!')
@@ -96,8 +180,10 @@ async function removeSoldOutProduct(page, userBotData, res){ // Remove sold out 
 }
 
 async function selectProductByName(page, userBotData, res){ // Select Available Product By Category
+    
     let preferredTitle = userBotData["preferredTitle"]
     let preferredColor = userBotData["preferredColor"]
+    sendResponse(res, `Searching for the product ${preferredTitle} color ${preferredColor}`)
 
     await page.waitForSelector("div.product-name > a[class='name-link']") // Wait for selector to appear
     const productElement = await page.$$("div.product-name > a[class='name-link']") // Get all a product link element
@@ -378,8 +464,8 @@ async function checkoutFormPage(page, userBotData, res){
 }
 
 async function hReCaptchaResolver(page, userBotData, res){
-    responseResult = `Solving ReCaptcha!!`
-    sendResponse(res, responseResult)
+    sendResponse(res, `Solving hReCaptcha ReCaptcha!!`)
+
     const captchaSiteKey = await page.evaluate(() => {
         const element = document.querySelector("div[data-callback='checkoutAfterCaptcha']")
         let attribute = element.getAttribute('data-sitekey')
@@ -391,16 +477,16 @@ async function hReCaptchaResolver(page, userBotData, res){
         let captchaResponseToken = await ac.solveHCaptchaProxyless( page.url(), captchaSiteKey )
         
         .then((gresponse) => {
-            responseResult = `Captcha Solved!`
+            responseResult = `Captcha Solved! ${gresponse}`
             sendResponse(res, responseResult)
-            return true
+            return gresponse
         })
         .catch((error) => {
             responseResult = `Error ReCaptcha Solving! ${error}`
             sendResponse(res, responseResult)
             return false
         });
-        if(captchaResponseToken == true){
+        if(captchaResponseToken){
             await page.evaluate(`document.querySelector("textarea[name='h-captcha-response']").innerHTML="${captchaResponseToken}"`)            
             await page.evaluate(`document.getElementById("checkout_form").submit();`)
             responseResult = `ReCaptcha Solved! Finalizing Checkout!! ${captchaResponseToken}`
@@ -416,6 +502,8 @@ async function hReCaptchaResolver(page, userBotData, res){
 
 
 async function gReCaptchaResolver(page, userBotData, res){
+    sendResponse(res, `Solving gReCaptcha ReCaptcha!!`)
+
     const captchaSiteKey = await page.evaluate(() => {
         const element = document.querySelector(".g-recaptcha")
         let attribute = element.getAttribute('data-sitekey')
@@ -437,7 +525,7 @@ async function gReCaptchaResolver(page, userBotData, res){
         })
 
         if(captchaResponseToken == true){
-            await page.evaluate(`document.getElementById("g-recaptcha-response").innerHTML="${captchaResponseToken}";`)            
+            await page.evaluate(`document.getElementById("g-recaptcha-response").innerHTML = "${captchaResponseToken}";`)            
             await page.evaluate(`document.getElementById("checkout_form").submit();`)
             sendResponse(res, `ReCaptcha Solved! Finalizing Checkout!!`)
             await confirmationPage(page, userBotData, res)
@@ -468,6 +556,16 @@ async function confirmationPage(page, userBotData, res){
         checkoutFormPage(page, userBotData, res)
     }
 
+    // Check if page redirects to duplicate page
+    const failed = await page.evaluate(() => {
+        const element = document.querySelector('.failed');        
+        return element;
+    })
+    if(failed !== null){
+        sendResponse(res, `Detected as a bot..`)
+        sendResponse(res, `Check Out Failed...`)
+        await page.close()
+    }
 
     // Check if page redirects to success page
     const successMessage = await page.evaluate(() => {
@@ -484,4 +582,15 @@ async function confirmationPage(page, userBotData, res){
         }
     }
     
+}
+
+let responseResult = '';
+function sendResponse(res, result){ // Server to client Response
+    console.log(result)
+    res.write(`${result}!\n\n`)
+}
+
+async function getProperty(element, propertyName){ // Get Element Property
+    const property = await element.getProperty(propertyName)
+    return await property.jsonValue()
 }
