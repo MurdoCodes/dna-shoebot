@@ -1,11 +1,20 @@
+const http = require('http')
 const puppeteer = require('puppeteer-extra')
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')
-const pluginProxy = require('puppeteer-extra-plugin-proxy');
+const pluginProxy = require('puppeteer-extra-plugin-proxy')
+const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker')
 const ac = require('@antiadmin/anticaptchaofficial')
-const fs = require('fs');
+
 const express = require('express')
 let router = express.Router()
 
+const antiCaptchaKey = process.env.anticaptchaAPIKey || '1d0f98f50be1aa14f3b726b3ffdd2ffb' // AntiCaptcha API Key
+const siteUrl = process.env.nikeUrl || 'https://www.nike.com/'; // Store URL
+
+const { PrivacyApi } = require('privacy.com')
+const privacyApi = new PrivacyApi('269db36d-8d7f-483a-9031-e861a80cecf4')
+
+puppeteer.use(AdblockerPlugin({ blockTrackers: true }))
 puppeteer.use(StealthPlugin())
 puppeteer.use(pluginProxy({
     address: 'zproxy.lum-superproxy.io',
@@ -14,10 +23,7 @@ puppeteer.use(pluginProxy({
       username: 'lum-customer-c_35009731-zone-dnashoebot-country-us',
       password: 'jiv2w#%o42of',
     }
-  }));
-
-const siteUrl = process.env.nikeUrl || 'https://www.nike.com/'; // Store URL to siteUrl
-const antiCaptchaKey = process.env.anticaptchaAPIKey || '1d0f98f50be1aa14f3b726b3ffdd2ffb' // AntiCaptcha API Key
+  }))
 
 router.get('/', (req, res, next) => {
     res.set({
@@ -34,63 +40,88 @@ router.get('/', (req, res, next) => {
         .catch((error) => {
             res.write(`Nike : an error with API key  ${error}`)
         })
-    checkout(req.query, res)
+
+    createCard(req.query, res) // Privay.com check response of create API
     next()
 })
 module.exports = router
 
-let responseResult = '';
-function sendResponse(res, result){ // Server to client Response
-    console.log(result)
-    res.write(`${result}!\n\n`)
-}
+async function createCard(userBotData, res){ // Privacy.com 
+    const cardParams = {
+        type: "UNLOCKED",
+        memo: "friendly identifier",
+        spend_limit: 1000,
+        spend_limit_duration: "MONTHLY"
+    }    
+    privacyApi
+        .createCard(cardParams)
+        .then((createCardResponse) => {
+            
+            const data = createCardResponse.data
+            let obj = {}
+            obj.preferredCreditCardNumber = data.pan
+            obj.preferredCcnMonth = data.exp_month
+            obj.preferredCcnYear = data.exp_year
+            obj.preferredCcnCVV = data.cvv
+            Object.assign(userBotData, obj)
 
-async function getProperty(element, propertyName){ // Get Element Property
-    const property = await element.getProperty(propertyName)
-    return await property.jsonValue()
+            sendResponse(res, `Virtual Credit Card Created!!!`)
+            checkout(userBotData, res)
+        })
+        .catch((e) => {
+            const message = e.response.status + " " + e.response.statusText
+            sendResponse(res, message)
+        })
 }
 
 async function checkout(userBotData, res){ // Initialize Browser
 
     sendResponse(res, 'Connecting to the site!!!') // Return update to client
-    const url = siteUrl // Add Category name to the url to scrape
+    const url = siteUrl
+
+    // [
+    //     '--no-sandbox',
+    //     '--disable-web-security',
+    // ]
+
     const args = [
-        '--disable-web-security',
-        '--disable-features=IsolateOrigins',
-        ' --disable-site-isolation-trials'
+        '--no-sandbox',
+        '--disable-setuid-sandbox',?
+        '--disable-gpu',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--blink-settings=imagesEnabled=true'
     ]
     const options = {
+        // browserWSEndpoint: ws,
         slowMo: 50,
         headless: false,       
-        // ignoreDefaultArgs: ["--enable-automation"],
-        ignoreDefaultArgs: ["--enable-blink-features=IdleDetection"], 
+        ignoreDefaultArgs: ["--enable-automation", "--enable-blink-features=IdleDetection"],
         ignoreHTTPSErrors: true,
         args
-        // executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe'
     }
+    // const browser = await puppeteer.connect(options) // For MLA
     const browser = await puppeteer.launch(options)
     const context = await browser.createIncognitoBrowserContext() // Use Incognito Browser
     const page = await context.newPage()
 
     const pages = await browser.pages()
     if (pages.length > 1) { await pages[0].close() } // Close unused pages
-    await page.setViewport({ width: 1920, height: 912, deviceScaleFactor: 1, }) // Set page viewport
+    await page.setViewport({ width: 1920, height: 969, deviceScaleFactor: 1, }) // Set page viewport
     await page.setDefaultTimeout(0) // Set timeout to 0
+
+    await page.evaluateOnNewDocument(() => {
+        delete navigator.__proto__.webdriver;
+    })
 
     const goto = await page.goto(url, {waitUntil: 'networkidle2', timeout: 0})
     
     if(goto === null){
         sendResponse(res, 'Cant get the site url... Process Stopped!!!')
-        // await browser.close()
+        await browser.close()
     }else{
         await searchProduct(page, userBotData, res)
     }
 
-}
-
-async function getProperty(element, propertyName){ // Get Element property function
-    const property = await element.getProperty(propertyName)
-    return await property.jsonValue()
 }
 
 async function searchProduct(page, userBotData, res){
@@ -99,7 +130,7 @@ async function searchProduct(page, userBotData, res){
     var preferredTitle = userBotData['preferredTitle']
     var preferredGender = userBotData['preferredGender']
 
-    if(preferredTitle){ // if user only added Product Title
+    if(preferredTitle){ // if user added Product Title
         sendResponse(res, `Searching Product ${preferredTitle}...`)
         await page.$eval("a[aria-label='"+preferredCategoryName+"']", elem => elem.click())// Click preferred category
         await page.waitForTimeout(2000)
@@ -122,7 +153,7 @@ async function searchProduct(page, userBotData, res){
         })
         await Promise.all(productMapping)        
 
-    }else if(preferredSKU){ // if user only added Product SKU
+    }else if(preferredSKU){ // if user added Product SKU
         sendResponse(res, `Searching Product ${preferredSKU}...`)
         await page.type("input[id='VisualSearchInput']", preferredSKU); // Write SKU on the search bar
         await page.waitForTimeout(2000)
@@ -140,7 +171,7 @@ async function searchProduct(page, userBotData, res){
         })
         await Promise.all(productMapping)
 
-    }else if(preferredTitle && preferredSKU ){ // if user only added Both Product Title and SKU
+    }else if(preferredTitle && preferredSKU ){ // if user added Both Product Title and SKU
         sendResponse(res, `Searching Product ${preferredTitle}/${preferredSKU}...`)
         await page.type("input[id='VisualSearchInput']", preferredSKU); // Write SKU on the search bar
         await page.waitForTimeout(2000)
@@ -213,6 +244,12 @@ async function productPage(page, userBotData, res){
     
 }
 
-async function checkoutPage(page, userBotData){
-    console.log('Checkout Page');
+let responseResult = '';
+function sendResponse(res, result){ // Server to client Response
+    console.log(result)
+    res.write(`${result}!\n\n`)
+}
+async function getProperty(element, propertyName){ // Get Element Property
+    const property = await element.getProperty(propertyName)
+    return await property.jsonValue()
 }

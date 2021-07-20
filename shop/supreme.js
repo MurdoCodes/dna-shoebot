@@ -12,7 +12,7 @@ const antiCaptchaKey = process.env.anticaptchaAPIKey || '1d0f98f50be1aa14f3b726b
 const siteUrl = process.env.supremeUrl || 'https://supremenewyork.com/shop/all/' // Store URL
 
 const { PrivacyApi } = require('privacy.com')
-const privacyApi = new PrivacyApi(process.env.privacyApiKey || '269db36d-8d7f-483a-9031-e861a80cecf4')
+const privacyApi = new PrivacyApi(process.env.privacyApiKey || '65efff02-ed25-42d0-9d04-6af87f54491c')
 
 /**
  * Puppeteer Stealth Pre Settings for anti bot detection
@@ -76,7 +76,7 @@ async function createCard(userBotData, res){ // Privacy.com
             checkout(userBotData, res)
         })
         .catch((e) => {
-            const message = e.response.status + " " + e.response.data
+            const message = e.response.status + " " + e.response.statusText
             sendResponse(res, message)
         })
 
@@ -132,7 +132,6 @@ async function checkout(userBotData, res, ws){
         ignoreDefaultArgs: ["--enable-automation", "--enable-blink-features=IdleDetection"],
         ignoreHTTPSErrors: true,
         args
-        // executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe'
     }
 
     // const browser = await puppeteer.connect(options) // For MLA
@@ -203,6 +202,7 @@ async function selectProductByName(page, userBotData, res){ // Select Available 
             found = false
         }
     }
+
     if(found === false){
         sendResponse(res, `Product ${preferredTitle} with the color of ${preferredColor} is no longer available...`)
         sendResponse(res, `Process Stopped...`)
@@ -226,7 +226,7 @@ async function addToCart(page, userBotData, res){
     const colorElement = await page.evaluate((preferredColor) => {
         const element = document.querySelector("button[data-style-name='"+preferredColor+"']");        
         return element;
-    }, preferredColor);
+    }, preferredColor)
     if(colorElement !== null){        
         await page.$eval("button[data-style-name='"+preferredColor+"']", elem => elem.click()); // color picker
         sendResponse(res, `${preferredColor} color succesfully selected... `)      
@@ -236,7 +236,7 @@ async function addToCart(page, userBotData, res){
     const sizeElement = await page.evaluate(() => {
         const element = document.querySelector('select[aria-labelledby="select-size"]');        
         return element;
-    });
+    })
     if(sizeElement !== null){
         await page.waitForSelector('select[aria-labelledby="select-size"]')
         const sizeElement1 = await page.$$('select[aria-labelledby="select-size"] > option') 
@@ -256,7 +256,7 @@ async function addToCart(page, userBotData, res){
     const qtyElement = await page.evaluate(() => {
         const element = document.querySelector('select#qty');        
         return element;
-    });
+    })
     if(qtyElement !== null){  
         await page.waitForSelector('select#qty')      
         await page.select("select#qty", preferredQuantity); // Quantity select
@@ -268,7 +268,7 @@ async function addToCart(page, userBotData, res){
     const addToCartElement = await page.evaluate(() => {
         const element = document.querySelector("input[value='add to cart']");        
         return element;
-    });
+    })
     if(addToCartElement !== null){
         await page.waitForSelector("input[value='add to cart']")
         await page.$eval("input[value='add to cart']", elem => elem.click()) // add to cart button
@@ -290,17 +290,16 @@ async function addToCart(page, userBotData, res){
 
 // Bot on Delivery Page
 async function checkoutFormPage(page, userBotData, res){
-    let preferredBillingName = userBotData["preferredBillingName"];
-    let preferredOrder_email = userBotData["preferredOrder_email"];
-    let preferredOrder_number = userBotData["preferredOrder_number"];
-    let preferredOrder_billing_address = userBotData["preferredOrder_billing_address"];
-    let preferredOrder_billing_city = userBotData["preferredOrder_billing_city"];
-    let preferredOrder_billing_zip = userBotData["preferredOrder_billing_zip"];
-    let preferredOrder_billing_state = userBotData["preferredOrder_billing_state"];
-    let preferredCreditCardNumber = userBotData["preferredCreditCardNumber"];
-    let preferredCcnMonth = userBotData["preferredCcnMonth"];
-    let preferredCcnYear = userBotData["preferredCcnYear"];
-    let preferredCcnCVV = userBotData["preferredCcnCVV"];
+    let preferredBillingName = userBotData["preferredBillingName"]
+    let preferredOrder_email = userBotData["preferredOrder_email"]
+    let preferredOrder_number = userBotData["preferredOrder_number"]
+    let preferredOrder_billing_address = userBotData["preferredOrder_billing_address"]
+    let preferredOrder_billing_zip = userBotData["preferredOrder_billing_zip"]
+    let preferredOrder_billing_state = userBotData["preferredOrder_billing_state"]
+    let preferredCreditCardNumber = userBotData["preferredCreditCardNumber"]
+    let preferredCcnMonth = userBotData["preferredCcnMonth"]
+    let preferredCcnYear = userBotData["preferredCcnYear"]
+    let preferredCcnCVV = userBotData["preferredCcnCVV"]
 
     await page.waitForSelector("input[id='order_billing_name']")
     const order_billing_name = await page.evaluate(() => {
@@ -363,16 +362,12 @@ async function checkoutFormPage(page, userBotData, res){
     }
 
     await page.waitForSelector("input[name='order[billing_city]']")
-    const order_billing_city = await page.evaluate(() => {
-        const element = document.querySelector("input[name='order[billing_city]']");        
-        return element;
-    });
-    if(order_billing_city !== null){
-        await page.type("input[name='order[billing_city]']", preferredOrder_billing_city); // Write City
-        await page.waitForTimeout(1000)
-        responseResult = `Successfully written City...`
-        sendResponse(res, responseResult)
-    }
+    const selector = 'input[name="order[billing_city]"]'
+    await page.waitForFunction(
+        selector => document.querySelector(selector).value.length > 0,
+        {},
+        selector
+    )
     
     await page.waitForSelector("select#order_billing_state")
     const order_billing_state = await page.evaluate(() => {
