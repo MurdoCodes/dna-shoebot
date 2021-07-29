@@ -15,5 +15,5 @@ app.use('/api/store/supreme/', supreme) // supreme route
 app.use('/api/store/nike/', nike) // nike route
 
 // PORT
-const PORT = process.env.PORT || 5001; // Declare env port
+const PORT = process.env.PORT || 5000; // Declare env port
 app.listen(PORT, () => console.log(`Listening to port ${PORT}`)) // listen to PORT
