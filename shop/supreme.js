@@ -10,10 +10,10 @@ const express = require('express')
 let router = express.Router()
 
 // Production
-const antiCaptchaKey = process.env.ANTICAPTCHA_API_KEY // AntiCaptcha API Key
-const privacyApi = new PrivacyApi(process.env.PRIVACY_API_KEY, false) // Privay API Key
+const antiCaptchaKey = process.env.ANTICAPTCHA_API_KEY || '1d0f98f50be1aa14f3b726b3ffdd2ffb' // AntiCaptcha API Key
+const privacyApi = new PrivacyApi(process.env.PRIVACY_API_KEY || 'a2c5ee29-5557-4dee-838f-7f17d00de073', false) // Privay API Key
 // const privacyApi = new PrivacyApi('269db36d-8d7f-483a-9031-e861a80cecf4', true) // Development
-const siteUrl = process.env.SUPREME_URL// Store URL
+const siteUrl = process.env.SUPREME_URL || 'https://www.supremenewyork.com/shop/all/' // Store URL
 
 /**
  * Puppeteer Stealth Pre Settings for anti bot detection
