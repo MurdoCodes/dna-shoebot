@@ -1,23 +1,23 @@
 const http = require('http')
+const https = require('https')
 const puppeteer = require('puppeteer-extra')
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')
 const pluginProxy = require('puppeteer-extra-plugin-proxy')
 // const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker')
 const ac = require('@antiadmin/anticaptchaofficial')
-
+const { PrivacyApi } = require('privacy.com')
 const express = require('express')
 let router = express.Router()
 
-const antiCaptchaKey = process.env.anticaptchaAPIKey || '1d0f98f50be1aa14f3b726b3ffdd2ffb' // AntiCaptcha API Key
-const siteUrl = process.env.supremeUrl || 'https://supremenewyork.com/shop/all/' // Store URL
-
-const { PrivacyApi } = require('privacy.com')
-const privacyApi = new PrivacyApi(process.env.privacyApiKey || '65efff02-ed25-42d0-9d04-6af87f54491c')
+// Production
+const antiCaptchaKey = process.env.ANTICAPTCHA_API_KEY // AntiCaptcha API Key
+const privacyApi = new PrivacyApi(process.env.PRIVACY_API_KEY, false) // Privay API Key
+// const privacyApi = new PrivacyApi('269db36d-8d7f-483a-9031-e861a80cecf4', true) // Development
+const siteUrl = process.env.SUPREME_URL// Store URL
 
 /**
  * Puppeteer Stealth Pre Settings for anti bot detection
 **/ 
-// puppeteer.use(AdblockerPlugin({ blockTrackers: true }))
 puppeteer.use(StealthPlugin())
 puppeteer.use(pluginProxy({
     address: 'zproxy.lum-superproxy.io',
@@ -44,41 +44,73 @@ router.get('/', (req, res, next) => {
     .catch((error) => {
         res.write(`Supreme : an error with API key  ${error}`)
     });
-
-    createCard(req.query, res) // Privay.com check response of create API
-    // let reqQuery = req.query
-    // startProfile(reqQuery, res)
+    let userBotData = req.query
+    // createCard(req.query, res) // Privay.com check response of create API
+    checkout(userBotData, res)
     next()
 })
 module.exports = router // Export module
 
 async function createCard(userBotData, res){ // Privacy.com 
 
-    const cardParams = {
-        type: "UNLOCKED",
-        memo: "friendly identifier",
-        spend_limit: 1000,
-        spend_limit_duration: "MONTHLY"
-    }    
-    privacyApi
-        .createCard(cardParams)
-        .then((createCardResponse) => {
+    // let cardName = userBotData['preferredBillingName']
+    // const createCardParams = {
+    //     type: "SINGLE_USE",
+    //     memo: cardName,
+    //     spend_limit: 100,
+    //     spend_limit_duration: "TRANSACTION"
+    // }    
+    // privacyApi
+    //     .createCard(createCardParams)
+    //     .then((createCardResponse) => {
             
-            const data = createCardResponse.data
-            let obj = {}
-            obj.preferredCreditCardNumber = data.pan
-            obj.preferredCcnMonth = data.exp_month
-            obj.preferredCcnYear = data.exp_year
-            obj.preferredCcnCVV = data.cvv
-            Object.assign(userBotData, obj)
+    //         const data = createCardResponse.data
+    //         let obj = {}
+    //         obj.preferredCreditCardNumber = data.pan
+    //         obj.preferredCcnMonth = data.exp_month
+    //         obj.preferredCcnYear = data.exp_year
+    //         obj.preferredCcnCVV = data.cvv
+    //         Object.assign(userBotData, obj)
+            
+    //         console.log(data)
+    //         sendResponse(res, `Virtual Credit Card Created!!!`)
+    //         // checkout(userBotData, res)
+    //     })
+    //     .catch((e) => {
+    //         console.log(e)
+    //         const message = "Card Error : " + e.response.status + " " + e.response.statusText
+    //         sendResponse(res, message)
+    //     })
 
-            sendResponse(res, `Virtual Credit Card Created!!!`)
-            checkout(userBotData, res)
-        })
-        .catch((e) => {
-            const message = e.response.status + " " + e.response.statusText
-            sendResponse(res, message)
-        })
+
+    // const listCardsParams = {
+    //     page: 1,
+    //     page_size: 50,
+    //     begin: "2021-06-01",
+    //     end: "2021-07-31"
+    // }
+
+    // privacyApi
+    //     .hostedCardUi(listCardsParams)
+    //     .then((listCards) => {
+            
+    //         const data = listCards.data
+    //         // let obj = {}
+    //         // obj.preferredCreditCardNumber = data.pan
+    //         // obj.preferredCcnMonth = data.exp_month
+    //         // obj.preferredCcnYear = data.exp_year
+    //         // obj.preferredCcnCVV = data.cvv
+    //         // Object.assign(userBotData, obj)
+            
+    //         console.log(listCards)
+    //         sendResponse(res, `Virtual Credit Card Created!!!`)
+    //         // checkout(userBotData, res)
+    //     })
+    //     .catch((e) => {
+    //         console.log(e)
+    //         const message = "Card Error : " + e.response.status + " " + e.response.statusText
+    //         sendResponse(res, message)
+    //     })
 
 }
 
@@ -120,17 +152,17 @@ async function startProfile(userBotData, res){ // Multi Login Settings
     });
 }
 
-async function checkout(userBotData, res, ws){
+async function checkout(userBotData, res){
     sendResponse(res, 'Connecting to the site!!!') // Return update to client
     const url = siteUrl + userBotData["preferredCategoryName"] // Add Category name to the url to scrape
 
     const args = ['--no-sandbox']
+    const ignoreDefaultArgs = ["--enable-automation", "--enable-blink-features=IdleDetection"]
     const options = {
-        // browserWSEndpoint: ws,
         slowMo: 50,
-        headless: false,       
-        ignoreDefaultArgs: ["--enable-automation", "--enable-blink-features=IdleDetection"],
+        headless: false,
         ignoreHTTPSErrors: true,
+        ignoreDefaultArgs: ignoreDefaultArgs,
         args
     }
 
@@ -195,6 +227,8 @@ async function selectProductByName(page, userBotData, res){ // Select Available 
         productText = productName.replace(/(\r\n|\n|\r)/gm,"")
 
         if(productText === preferredTitle && productColor === preferredColor){
+            let element  = productColorElement[i]
+            await mouseMove(element, page)
             await productColorElement[i].click()
             found = true
             break
@@ -227,19 +261,24 @@ async function addToCart(page, userBotData, res){
         const element = document.querySelector("button[data-style-name='"+preferredColor+"']");        
         return element;
     }, preferredColor)
-    if(colorElement !== null){        
+
+    if(colorElement !== null){
+        element = await page.$("button[data-style-name='"+preferredColor+"']");
+        await mouseMove(element, page)
         await page.$eval("button[data-style-name='"+preferredColor+"']", elem => elem.click()); // color picker
         sendResponse(res, `${preferredColor} color succesfully selected... `)      
     }
 
-    // If sizes Exist    
+    // If sizes Exist
     const sizeElement = await page.evaluate(() => {
         const element = document.querySelector('select[aria-labelledby="select-size"]');        
         return element;
     })
     if(sizeElement !== null){
         await page.waitForSelector('select[aria-labelledby="select-size"]')
-        const sizeElement1 = await page.$$('select[aria-labelledby="select-size"] > option') 
+        const element = await page.$$('select[aria-labelledby="select-size"] > option')
+        await mouseMove(element, page)
+
         const sizeMapping = sizeElement1.map(async (element) => {
             const size = await getProperty(element, 'innerText')
             if( size === preferredSize ){
@@ -258,23 +297,29 @@ async function addToCart(page, userBotData, res){
         return element;
     })
     if(qtyElement !== null){  
-        await page.waitForSelector('select#qty')      
+        await page.waitForSelector('select#qty')
+        let element = await page.$("select#qty");
+        await mouseMove(element, page)    
         await page.select("select#qty", preferredQuantity); // Quantity select
         responseResult = `${preferredQuantity} quantity/ies selected...`
         sendResponse(res, responseResult)
     }
 
-    // If Add To Cart Button Exist  
+    // If Add To Cart Button Exist
     const addToCartElement = await page.evaluate(() => {
         const element = document.querySelector("input[value='add to cart']");        
         return element;
     })
     if(addToCartElement !== null){
         await page.waitForSelector("input[value='add to cart']")
+        let element = await page.$("input[value='add to cart']");
+        await mouseMove(element, page)
         await page.$eval("input[value='add to cart']", elem => elem.click()) // add to cart button
 
         await page.waitForSelector("a[class='button checkout']", {visible: true})
-        await page.$eval("a[class='button checkout']", elem => elem.click()) // checkout button
+        let checkoutElement  = await page.$("a[class='button checkout']");
+        await mouseMove(checkoutElement, page)
+        // await page.$eval("a[class='button checkout']", elem => elem.click()) // checkout button
 
         try {
             sendResponse(res, `${preferredTitle} product successfully added to cart...`)
@@ -294,6 +339,7 @@ async function checkoutFormPage(page, userBotData, res){
     let preferredOrder_email = userBotData["preferredOrder_email"]
     let preferredOrder_number = userBotData["preferredOrder_number"]
     let preferredOrder_billing_address = userBotData["preferredOrder_billing_address"]
+    let preferredOrder_billing_address2 = userBotData["preferredOrder_billing_address2"]
     let preferredOrder_billing_zip = userBotData["preferredOrder_billing_zip"]
     let preferredOrder_billing_state = userBotData["preferredOrder_billing_state"]
     let preferredCreditCardNumber = userBotData["preferredCreditCardNumber"]
@@ -303,9 +349,11 @@ async function checkoutFormPage(page, userBotData, res){
 
     await page.waitForSelector("input[id='order_billing_name']")
     const order_billing_name = await page.evaluate(() => {
-        const element = document.querySelector("input[id='order_billing_name']");        
+        const element = document.querySelector("input[id='order_billing_name']");       
         return element;
-    });
+    })
+    let order_billing_nameelement  = await page.$("input[id='order_billing_name']");
+    await mouseMove(order_billing_nameelement, page)
     if(order_billing_name !== null){
         await page.type("input[id='order_billing_name']", preferredBillingName); // Write Full Name        
         await page.waitForTimeout(1000);
@@ -317,7 +365,9 @@ async function checkoutFormPage(page, userBotData, res){
     const order_email = await page.evaluate(() => {
         const element = document.querySelector("input[id='order_email']");        
         return element;
-    });
+    })
+    let order_emailelement  = await page.$("input[id='order_email']");
+    await mouseMove(order_emailelement, page)
     if(order_email !== null){
         await page.type("input[id='order_email']", preferredOrder_email); // Write Email        
         await page.waitForTimeout(1000)
@@ -329,7 +379,9 @@ async function checkoutFormPage(page, userBotData, res){
     const order_tel = await page.evaluate(() => {
         const element = document.querySelector("input[id='order_tel']");        
         return element;
-    });
+    })
+    let order_telelement  = await page.$("input[id='order_tel']");
+    await mouseMove(order_telelement, page)
     if(order_tel !== null){
         await page.type("input[id='order_tel']", preferredOrder_number); // Write Contact Number        
         await page.waitForTimeout(1000)
@@ -341,7 +393,9 @@ async function checkoutFormPage(page, userBotData, res){
     const billing_address = await page.evaluate(() => {
         const element = document.querySelector("input[name='order[billing_address]']");        
         return element;
-    });
+    })
+    let billing_addresselement  = await page.$("input[name='order[billing_address]']");
+    await mouseMove(billing_addresselement, page)
     if(billing_address !== null){
         await page.type("input[name='order[billing_address]']", preferredOrder_billing_address); // Write Billing Address        
         await page.waitForTimeout(1000);
@@ -349,11 +403,27 @@ async function checkoutFormPage(page, userBotData, res){
         sendResponse(res, responseResult)
     }
 
+    await page.waitForSelector("input[name='order[billing_address_2]']")
+    const billing_address2 = await page.evaluate(() => {
+        const element = document.querySelector("input[name='order[billing_address_2]']");        
+        return element;
+    })
+    let billing_addresse2lement  = await page.$("input[name='order[billing_address_2]']");
+    await mouseMove(billing_addresse2lement, page)
+    if(billing_address2 !== null){
+        await page.type("input[name='order[billing_address_2]']", preferredOrder_billing_address2); // Write Billing Address        
+        await page.waitForTimeout(1000);
+        responseResult = `Successfully written Billing Address 2...`
+        sendResponse(res, responseResult)
+    }
+
     await page.waitForSelector("input[name='order[billing_zip]']")
     const order_billing_zip = await page.evaluate(() => {
         const element = document.querySelector("input[name='order[billing_zip]']");        
         return element;
-    });
+    })
+    let order_billing_zipelement  = await page.$("input[name='order[billing_zip]']");
+    await mouseMove(order_billing_zipelement, page)
     if(order_billing_zip !== null){
         await page.type("input[name='order[billing_zip]']", preferredOrder_billing_zip); // Write Zip Code        
         await page.waitForTimeout(1000)
@@ -368,12 +438,14 @@ async function checkoutFormPage(page, userBotData, res){
         {},
         selector
     )
-    
+    let billing_city  = await page.$(selector);
+    await mouseMove(billing_city, page)
     await page.waitForSelector("select#order_billing_state")
     const order_billing_state = await page.evaluate(() => {
         const element = document.querySelector("select#order_billing_state");        
         return element;
     });
+    
     if(order_billing_state !== null){
         await page.select("select#order_billing_state", preferredOrder_billing_state); // Select State
         await page.waitForTimeout(1000)
@@ -385,7 +457,9 @@ async function checkoutFormPage(page, userBotData, res){
     const rnsnckrn = await page.evaluate(() => {
         const element = document.querySelector("input[id='rnsnckrn']");        
         return element;
-    });
+    })
+    let rnsnckrnelement  = await page.$("input[id='rnsnckrn']");
+    await mouseMove(rnsnckrnelement, page)
     if(rnsnckrn !== null){
         await page.type("input[id='rnsnckrn']", preferredCreditCardNumber); // Write Credit Card Number
         await page.waitForTimeout(1000)
@@ -397,7 +471,9 @@ async function checkoutFormPage(page, userBotData, res){
     const credit_card_month = await page.evaluate(() => {
         const element = document.querySelector("select[id='credit_card_month']");        
         return element;
-    });
+    })
+    let credit_card_monthelement  = await page.$("select[id='credit_card_month']");
+    await mouseMove(credit_card_monthelement, page)
     if(credit_card_month !== null){
         // await page.type("input[id='credit_card_month']", preferredCcnMonth); // Write Credit Card Month
         await page.select("select[id='credit_card_month']", preferredCcnMonth);
@@ -410,7 +486,9 @@ async function checkoutFormPage(page, userBotData, res){
     const credit_card_year = await page.evaluate(() => {
         const element = document.querySelector("select[id='credit_card_year']");        
         return element;
-    });
+    })
+    let credit_card_yearelement  = await page.$("select[id='credit_card_year']");
+    await mouseMove(credit_card_yearelement, page)
     if(credit_card_year !== null){
         await page.type("select[id='credit_card_year']", preferredCcnYear); // Write Credit Card Year
         await page.waitForTimeout(1000)
@@ -422,7 +500,9 @@ async function checkoutFormPage(page, userBotData, res){
     const orcer = await page.evaluate(() => {
         const element = document.querySelector("input[id='orcer']");        
         return element;
-    });
+    })
+    let orcerelement  = await page.$("input[id='orcer']");
+    await mouseMove(orcerelement, page)
     if(orcer !== null){
         await page.type("input[id='orcer']", preferredCcnCVV); // Write Credit Card CVV
         await page.waitForTimeout(1000)
@@ -431,14 +511,17 @@ async function checkoutFormPage(page, userBotData, res){
     }
     
     await page.waitForSelector('input[id="order_terms"]')
-    const order_terms = await page.$('input[id="order_terms"]'); // Click Terms and Condition
-    console.log(await (await order_terms.getProperty('checked')).jsonValue());
-    await order_terms.click(); // Check Order Terms
+    const order_terms = await page.$('input[id="order_terms"]') // Click Terms and Condition
+    await mouseMove(order_terms, page)
+    // await order_terms.click(); // Check Order Terms
 
+    await page.waitForTimeout(1000)
     await page.waitForSelector("input[name='commit']")
-    await page.$eval("input[name='commit']", elem => elem.click()); // checkout button
-    await page.waitForTimeout(1000);
-
+    let commitElement  = await page.$("input[name='commit']");
+    await mouseMove(commitElement, page)
+    // await page.$eval("input[name='commit']", elem => elem.click()) // checkout button
+    
+    await page.waitForTimeout(1000)
     // Final step re captcha solver
     const gReCaptchaElement = await page.evaluate(() => { // Check if gReCaptcha
         const element = document.querySelector(".g-recaptcha");        
@@ -450,6 +533,9 @@ async function checkoutFormPage(page, userBotData, res){
         return element;
     });
 
+    console.log("gReCaptchaElement : " + gReCaptchaElement)
+    console.log("hReCaptchaElement : " + hReCaptchaElement)
+    
     await page.waitForTimeout(1000)
     if(gReCaptchaElement){
         await gReCaptchaResolver(page, userBotData, res)
@@ -460,17 +546,25 @@ async function checkoutFormPage(page, userBotData, res){
 
 async function hReCaptchaResolver(page, userBotData, res){
     sendResponse(res, `Solving hReCaptcha ReCaptcha!!`)
+    await page.waitForTimeout(1000)
+    await page.waitForSelector("div[data-callback='checkoutAfterCaptcha']")
 
     const captchaSiteKey = await page.evaluate(() => {
-        const element = document.querySelector("div[data-callback='checkoutAfterCaptcha']")
+        const element = document.querySelector("div[data-callback='checkoutAfterCaptcha']")        
         let attribute = element.getAttribute('data-sitekey')
         return attribute;
     });
+
+    // const captchaSiteKey = await page.$$eval("div[data-callback='checkoutAfterCaptcha']", el => el.map(x => x.getAttribute("data-sitekey")))
+
+    console.log("captchaSiteKey " + captchaSiteKey)
     await page.waitForSelector("textarea[name='h-captcha-response']")
 
     if(captchaSiteKey){
+
         let captchaResponseToken = await ac.solveHCaptchaProxyless( page.url(), captchaSiteKey )
-        
+        console.log(captchaResponseToken)
+
         .then((gresponse) => {
             responseResult = `Captcha Solved! ${gresponse}`
             sendResponse(res, responseResult)
@@ -480,18 +574,22 @@ async function hReCaptchaResolver(page, userBotData, res){
             responseResult = `Error ReCaptcha Solving! ${error}`
             sendResponse(res, responseResult)
             return false
-        });
-        if(captchaResponseToken){
-            await page.evaluate(`document.querySelector("textarea[name='h-captcha-response']").innerHTML="${captchaResponseToken}"`)            
-            await page.evaluate(`document.getElementById("checkout_form").submit();`)
-            responseResult = `ReCaptcha Solved! Finalizing Checkout!! ${captchaResponseToken}`
-            sendResponse(res, responseResult)
-            await confirmationPage(page, userBotData, res)
-        }else{
-            responseResult = `Invalid ReCaptcha... Trying to resolve...`
-            sendResponse(res, responseResult)
-            hReCaptchaResolver(page, userBotData, res)
-        }
+        })
+
+        console.log(gresponse)
+
+        // if(captchaResponseToken){
+        //     await page.waitForTimeout(1000)
+        //     await page.evaluate(`document.querySelector("textarea[name='h-captcha-response']").innerHTML="${captchaResponseToken}"`)            
+        //     await page.evaluate(`document.getElementById("checkout_form").submit();`)
+        //     responseResult = `ReCaptcha Solved! Finalizing Checkout!! ${captchaResponseToken}`
+        //     sendResponse(res, responseResult)
+        //     await confirmationPage(page, userBotData, res)
+        // }else{
+        //     responseResult = `Invalid ReCaptcha... Trying to resolve...`
+        //     sendResponse(res, responseResult)
+        //     hReCaptchaResolver(page, userBotData, res)
+        // }
     }
 }
 
@@ -534,7 +632,6 @@ async function gReCaptchaResolver(page, userBotData, res){
 
 async function confirmationPage(page, userBotData, res){    
     let preferredTitle = userBotData['preferredTitle']
-    await page.waitForSelector("#confirmation")
 
     // Check if page redirects to duplicate page
     const duplicate = await page.evaluate(() => {
@@ -550,6 +647,7 @@ async function confirmationPage(page, userBotData, res){
         await page.waitForSelector('input#order_billing_name');
         checkoutFormPage(page, userBotData, res)
     }
+    console.log("DUPLICATE : " + duplicate)
 
     // Check if page redirects to duplicate page
     const failed = await page.evaluate(() => {
@@ -559,12 +657,16 @@ async function confirmationPage(page, userBotData, res){
     if(failed !== null){
         sendResponse(res, `Detected as a bot..`)
         sendResponse(res, `Check Out Failed...`)
+        await page.waitForSelector("a[id='back']");
+        await page.$eval("a[id='back']", elem => elem.click())
         await page.close()
+        checkout(userBotData, res)
     }
+    console.log("FAILED : " + failed)
 
     // Check if page redirects to success page
     const successMessage = await page.evaluate(() => {
-        const element = document.querySelector('#confirmation p').innerText.includes("Thank you")
+        const element = document.querySelector('.success').innerText.includes("Thank you")
         return element
     })
     if(successMessage !== null){
@@ -576,7 +678,7 @@ async function confirmationPage(page, userBotData, res){
             await page.close()
         }
     }
-    
+    console.log("SUCCESS MESSAGE : " + successMessage)
 }
 
 let responseResult = '';
@@ -588,4 +690,19 @@ function sendResponse(res, result){ // Server to client Response
 async function getProperty(element, propertyName){ // Get Element Property
     const property = await element.getProperty(propertyName)
     return await property.jsonValue()
+}
+
+async function mouseMove(element, page){
+    try {
+        let box = await element.boundingBox()
+        const x = box.x + (box.width/2)
+        const y = box.y + (box.height/2)
+        console.log(x + " and " + y)
+        await page.mouse.move(x,y)
+        await page.mouse.click(x,y)
+        return true
+    }
+    catch(e) {
+        return true
+    }
 }

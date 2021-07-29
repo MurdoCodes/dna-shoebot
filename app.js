@@ -1,9 +1,8 @@
 const express = require('express')
 const app = express()
-const dotenv = require('dotenv').config();
-const supreme = require("./shop/supreme");
-const nike = require("./shop/nike");
-
+const dotenv = require('dotenv').config()
+const supreme = require("./shop/supreme")
+const nike = require("./shop/nike")
 
 app.get('/', async (req, res) => {
    res.send(`Welcome to DNA Shoebot`)
