@@ -65,20 +65,19 @@ async function initBrowser(userBotData, res, ws){ // Initialize Browser
     let preferredTitle = userBotData['preferredTitle']
     const url = siteUrl + preferredTitle.split(' ').join('-').toLowerCase()
 
-    const args = ['--proxy-server=zproxy.lum-superproxy.io:22225']
+    const args = ['--proxy-server=zproxy.lum-superproxy.io:22225', '--disable-web-security', '--disable-features=IsolateOrigins,site-per-process' ]
     const options = {
         browserWSEndpoint: ws,
-        defaultViewport: null,
+        slowMo: 50,
         ignoreHTTPSErrors: true,
         args
     }
     const browser = await puppeteer.connect(options);
-    const page = await browser.newPage()
+    const [page] = await browser.pages()
     await page.authenticate({
         username: 'lum-customer-c_35009731-zone-dnashoebot-country-us',
         password: 'jiv2w#%o42of'
-    })
-    
+    })    
     
     await page.setDefaultTimeout(0) // Set timeout to 0
     await page.setViewport({ width: 1366, height: 691, deviceScaleFactor: 1, })
@@ -225,20 +224,29 @@ async function productPage(page, userBotData, res){
         }
     })
     await Promise.all(sizeMapping)
-    await page.waitForTimeout(2000)
+    await page.waitForTimeout(1000)
 
-    await page.waitForSelector(".ncss-btn-primary-dark") // wait for add to cart button
-    const addToCartElement = await page.$(".ncss-btn-primary-dark") // get add to cart button element and assign to variable
-    await mouseMove(addToCartElement, page) // move to element and click
-    // await addToCartElement.click()
-    sendResponse(res, `Product Successfully Added to Cart...`)
-    await page.waitForTimeout(2000)
+    await page.waitForSelector(".ncss-btn-primary-dark") 
+    const addToCartElement = await page.evaluate(() => {
+        const element = document.querySelector(".ncss-btn-primary-dark");        
+        return element;
+    })
+
+    if(addToCartElement !== null){
+        element = await page.$(".ncss-btn-primary-dark");
+        await mouseMove(element, page)
+        await page.$eval(".ncss-btn-primary-dark", elem => elem.click()); // color picker
+        sendResponse(res, `Product Successfully Added to Cart...`)      
+    }else{
+        console.log("not found")
+    }
+
 
     await page.waitForSelector("button[data-qa='checkout-link']"); // Wait for checkout button
     const buttonCheckoutElement = await page.$("button[data-qa='checkout-link']") // get preferred search button selector and assign to variable
     await mouseMove(buttonCheckoutElement, page) // move mouse to element and click
     // await buttonCheckoutElement.click()
-    sendResponse(res, `Already on checkout page...`)
+    await sendResponse(res, `Already on checkout page...`)
     await page.waitForTimeout(5000)
 
     // await page.waitForNavigation()
@@ -333,18 +341,12 @@ async function checkout(page, userBotData, res){
     sendResponse(res, `Successfully Saved Personal Details...`)
     await page.waitForTimeout(1000)
 
-    await page.waitForSelector(".continuePaymentBtn")
-    let continuePaymentBtnElement = await page.$(".continuePaymentBtn")
+    await page.waitForSelector('.continuePaymentBtn')
+    let continuePaymentBtnElement = await page.$('.continuePaymentBtn')
+    await page.waitForTimeout(2000)
     await mouseMove(continuePaymentBtnElement, page) // move mouse to element and click
-    await continuePaymentBtnElement.click()
     sendResponse(res, `Successfully Continued to Payment Section...`)
-    await page.waitForTimeout(1000)
-
-    // await page.waitForSelector("#creditDebit")
-    // let creditDebit = await page.$("#creditDebit")
-    // await mouseMove(creditDebit, page) // move mouse to element and click
-    // sendResponse(res, `Successfully Selected Pay Via Credit/Debit Card...`)
-    // await page.waitForTimeout(1000)
+    await page.waitForTimeout(2000)
 
     await payment(page, userBotData, res)
 }
@@ -355,37 +357,52 @@ async function payment(page, userBotData, res){
     let expirationDate = userBotData['preferredCcnMonth'] + userBotData['preferredCcnYear']
     let preferredCcnCVV = userBotData['preferredCcnCVV']
 
-    await page.waitForSelector("#creditCardNumber")
-    let creditCardNumberElement = await page.$("#creditCardNumber")
-    await mouseMove(creditCardNumberElement, page) // move mouse to element and click
-    await page.type('#creditCardNumber', preferredCreditCardNumber)
-    sendResponse(res, `Successfully typed Credit Card Number...`)
-    await page.waitForTimeout(1000)
+    await page.waitForSelector('.credit-card-iframe')
+    const iframeElement = await page.$('.credit-card-iframe')
+    const creditCardIframeElement = await iframeElement.contentFrame()
 
-    await page.waitForSelector("#expirationDate")
-    let expirationDateElement = await page.$("#expirationDate")
-    await mouseMove(expirationDateElement, page) // move mouse to element and click
-    await page.type('#expirationDate', expirationDate)
-    sendResponse(res, `Successfully typed Expiration Date...`)
-    await page.waitForTimeout(1000)
+    if(creditCardIframeElement !== null){
+        await creditCardIframeElement.waitForSelector('#creditCardNumber')
+        let creditCardNumberElement = await creditCardIframeElement.$('#creditCardNumber')
+        await mouseMove(creditCardNumberElement, page)
+        await creditCardIframeElement.type('#creditCardNumber', preferredCreditCardNumber)
+        sendResponse(res, `Successfully typed Credit Card Number...`)
+        await page.waitForTimeout(1000)
 
-    await page.waitForSelector("#cvNumber")
-    let cvNumberElement = await page.$("#cvNumber")
-    await mouseMove(cvNumberElement, page) // move mouse to element and click
-    await page.type('#cvNumber', preferredCcnCVV)
-    sendResponse(res, `Successfully typed CVV number...`)
-    await page.waitForTimeout(1000)
+        await creditCardIframeElement.waitForSelector('#expirationDate')
+        let expirationDateElement = await creditCardIframeElement.$('#expirationDate')
+        await mouseMove(expirationDateElement, page)
+        await creditCardIframeElement.type('#expirationDate', expirationDate)
+        sendResponse(res, `Successfully typed Expiration Date...`)
+        await page.waitForTimeout(1000)
 
-    await page.waitForSelector("button[data-attr='continueToOrderReviewBtn']")
-    let continueToOrderReviewBtnElement = await page.$("button[data-attr='continueToOrderReviewBtn']")
-    await mouseMove(continueToOrderReviewBtnElement, page) // move mouse to element and click
-    sendResponse(res, `Successfully continued to order review...`)
-    await page.waitForTimeout(1000)
+        await creditCardIframeElement.waitForSelector('#cvNumber')
+        let cvNumberElement = await creditCardIframeElement.$('#cvNumber')
+        await mouseMove(cvNumberElement, page)
+        await creditCardIframeElement.type('#cvNumber', preferredCcnCVV)
+        sendResponse(res, `Successfully typed Expiration Date...`)
+        await page.waitForTimeout(1000)
 
-    await page.waitForSelector("//button[contains(., 'Place Order')]") // wait for add to cart button
-    const PlaceOrderElement = await page.$x("//button[contains(., 'Place Order')]") // get add to cart button element and assign to variable
-    await mouseMove(PlaceOrderElement, page) // move to element and click
-    await page.waitForTimeout(2000)
+        await page.waitForSelector('button[data-attr="continueToOrderReviewBtn"]')
+        let continueToOrderReviewBtnElement = await page.$('button[data-attr="continueToOrderReviewBtn"]')
+        await page.waitForTimeout(2000)
+        await mouseMove(continueToOrderReviewBtnElement, page) // move mouse to element and click
+        continueToOrderReviewBtnElement.click()
+        sendResponse(res, `Successfully continued to order review...`)
+        await page.waitForTimeout(2000)
+
+        await page.waitForSelector('.test-desktop-button button')
+        let placeOrderElement = await page.$('.test-desktop-button button')
+        await page.waitForTimeout(2000)
+        await mouseMove(placeOrderElement, page) // move mouse to element and click
+        placeOrderElement.click()
+        sendResponse(res, `Congratulations! Successfully Placed Order!`)
+        await page.waitForTimeout(2000)
+
+    }else{
+        sendResponse(res, `Iframe Not Found... Sorry Process Cancelled`)
+        page.close()
+    }  
 }
 
 let responseResult = '';
