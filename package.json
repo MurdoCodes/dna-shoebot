@@ -21,10 +21,12 @@
     "node-fetch": "^2.6.1",
     "privacy.com": "^1.1.1",
     "puppeteer": "^5.4.1",
+    "puppeteer-cluster": "^0.22.0",
     "puppeteer-extra": "^3.1.18",
     "puppeteer-extra-plugin-adblocker": "^2.11.11",
     "puppeteer-extra-plugin-anonymize-ua": "^2.2.17",
     "puppeteer-extra-plugin-proxy": "^1.0.2",
-    "puppeteer-extra-plugin-stealth": "^2.7.8"
+    "puppeteer-extra-plugin-stealth": "^2.7.8",
+    "user-agents": "^1.0.740"
   }
 }
