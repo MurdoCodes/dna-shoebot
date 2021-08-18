@@ -1,15 +1,28 @@
-const http = require('http')
-const puppeteer = require('puppeteer')
+const puppeteer = require('puppeteer-extra')
+const StealthPlugin = require('puppeteer-extra-plugin-stealth')
+const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker')
+const pluginProxy = require('puppeteer-extra-plugin-proxy')
+const Ua = require('puppeteer-extra-plugin-anonymize-ua')
 const ac = require('@antiadmin/anticaptchaofficial')
-const { PrivacyApi } = require('privacy.com')
+
+const UserAgent = require('user-agents')
+const userAgent = new UserAgent()
+
 const express = require('express')
 let router = express.Router()
+
+puppeteer.use(StealthPlugin())
+const adblocker = AdblockerPlugin({
+    blockTrackers: true, // default: false
+  })
+puppeteer.use(adblocker)
+puppeteer.use(Ua())
 
 // Production
 const antiCaptchaKey = process.env.ANTICAPTCHA_API_KEY || '1d0f98f50be1aa14f3b726b3ffdd2ffb'
 const siteUrl = process.env.NIKE_URL || 'https://www.nike.com/launch/t/' // Store URL
 
-router.get('/', (req, res, next) => {
+exports.testnike = (req, res, next) => {
     res.set({
         'Cache-Control': 'no-cache',
         'Content-Type': 'text/event-stream',
@@ -24,207 +37,89 @@ router.get('/', (req, res, next) => {
         .catch((error) => {
             res.write(`Nike : an error with API key  ${error}`)
         })
-    startProfile(req.query, res)
+
+    initBrowser(req.query, res)
     next()
-})
-module.exports = router
-
-async function startProfile(userBotData, res){
-    const profileId = userBotData['profileId']
-    console.log(profileId)
-    let mlaPort = 5001;
-    sendResponse(res, `Starting MLA Profile ${profileId}`)
-
-    http.get(`http://127.0.0.1:${mlaPort}/api/v1/profile/start?automation=true&puppeteer=true&profileId=${profileId}`, (resp) => {
-    let data = '';
-    let ws = '';
-    resp.on('data', (chunk) => {
-      data += chunk;
-    });
-  
-    resp.on('end', () => {
-      let ws;
-      try {
-        ws = JSON.parse(data);
-      } catch(err) {
-        sendResponse(res, `MLA Error : ${err}...`)
-        startProfile(userBotData, res)
-      }
-      if (typeof ws === 'object' && ws.hasOwnProperty('value')) {        
-        sendResponse(res, `Succesfully Opened Browser with Profile Id : ${profileId}...`)
-        initBrowser(userBotData, res, ws.value)
-      }
-    });  
-    }).on("error", (err) => {
-      sendResponse(res, 'MLA Error : ' + err.message)
-    });
 }
 
 async function initBrowser(userBotData, res, ws){ // Initialize Browser
     sendResponse(res, 'Connecting to the site!!!') // Return update to client
     // let preferredTitle = userBotData['preferredTitle']
     // const url = siteUrl + preferredTitle.split(' ').join('-').toLowerCase()
+    // const url = 'http://panopticlick.eff.org/'
+    // const url = 'https://bot.incolumitas.com/'
+    const url = 'https://bot.sannysoft.com'
+    // const url = 'https://accounts.spotify.com/en/login/'
 
-    const url = 'https://accounts.spotify.com/en/login/'
+    // const args = [
+    //     '--proxy-server=zproxy.lum-superproxy.io',
+    //     '--no-sandbox',
+    //     '--disable-setuid-sandbox',
+    //     '--disable-web-security',
+    //     '--disable-features=IsolateOrigins,site-per-process',
+    //     `--user-agent=${userAgent}`,
+    // ]
 
-    const args = [        
-        // '--proxy-server=zproxy.lum-superproxy.io:22225',
-        '--proxy-server=us-1m.geosurf.io:8000',
+    const args = [
+        // '--proxy-server=us-1m.geosurf.io:8000',
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-web-security',
-        '--disable-features=IsolateOrigins,site-per-process'
+        '--disable-features=IsolateOrigins,site-per-process',
+        `--user-agent=${userAgent}`,
     ]
+    
     const options = {
-        browserWSEndpoint: ws,
-        ignoreHTTPSErrors: true,
-        headless: false,
-        slowMo: 50,
-        args
+        headless: false
+        // args
     }
-    const browser = await puppeteer.connect(options);
-    const [page] = await browser.pages()
+
+    const browser = await puppeteer.launch(options)
+    const page = await browser.newPage()
+
+    const pages = await browser.pages() 
+    if (pages.length > 1) { await pages[0].close() }
+
+    // await page.authenticate({
+    //     username: '511646+US+511646-596577',
+    //     password: '9c441be0d'
+    // })
+
     // await page.authenticate({
     //     username: 'lum-customer-c_35009731-zone-dnashoebot-country-us',
     //     password: 'jiv2w#%o42of'
     // })
-    await page.authenticate({
-        username: '511646+US+511646-174568',
-        password: '9c441be0d'
-    })
-    
-    // await page.setRequestInterception(true)
-    await page.setDefaultTimeout(0) // Set timeout to 0
-    await page.setViewport({ width: 1366, height: 691, deviceScaleFactor: 1, })
-    await page.evaluateOnNewDocument(() => {
-        delete navigator.__proto__.webdriver
-    })
 
-    const goto = await page.goto(url, {waitUntil: 'networkidle2', timeout: 0})
-    
+    await page.setDefaultTimeout(0) // Set timeout to 0
+    // await page.setDefaultNavigationTimeout(0)
+    await page.setViewport({ width: 1920, height: 969, deviceScaleFactor: 1, })
+
+    // await page.evaluateOnNewDocument(() => {
+    //     delete navigator.__proto__.webdriver
+    //     delete Object.getPrototypeOf(navigator).webdriver
+    // })
+
+    const cookies = await page.cookies(url)
+    await page.deleteCookie(...cookies)
+    const goto = await page.goto(url, {waitUntil: 'networkidle2', timeout: 0})    
+
     if(goto === null){
         sendResponse(res, 'Cant get the site url... Process Stopped!!!')
         await browser.close()
     }else{
         sendResponse(res, 'Connected to the site...')
-        await productPage(page, userBotData, res)
+        // await page.type('#login-username', 'LOGIN');
+        // await page.type('#login-password', 'PSWD');
+        // await page.click('#login-button');
+        // await productPage(page, userBotData, res)
         // await searchProduct(page, userBotData, res)
     }
 
 }
 
-async function searchProduct(page, userBotData, res){
-    var preferredCategoryName = userBotData['preferredCategoryName']
-    var preferredSKU = userBotData['preferredSKU']
-    var preferredTitle = userBotData['preferredTitle']
-    var preferredGender = userBotData['preferredGender']
-
-    if(preferredTitle){ // if user added Product Title
-        sendResponse(res, `Searching Product ${preferredTitle}...`)
-
-        await page.waitForSelector("a[aria-label='"+preferredCategoryName+"']") // Wait for preferred Category selector
-        // await page.$eval("a[aria-label='"+preferredCategoryName+"']", elem => elem.click()) // Click preferred category
-        preferredCategoryNameElement = await page.$("a[aria-label='"+preferredCategoryName+"']") // get preferred category selector and assign to variable
-        await mouseMove(preferredCategoryNameElement, page) // move mouse to element and click
-        sendResponse(res, `${preferredCategoryName} Category Selected...`)
-        await page.waitForTimeout(2000)
-
-        // await page.waitForSelector("a[aria-label='Filter for "+preferredGender+"']") // Wait for preferred Gender selector
-        // preferredGenderElement = await page.$("a[aria-label='Filter for "+preferredGender+"']") // get preferred category selector and assign to variable
-        // await mouseMove(preferredGenderElement, page) // move mouse to element and click
-        // await page.click("a[aria-label='Filter for "+preferredGender+"']")
-        // sendResponse(res, `${preferredGender} Gender Selected...`)
-        // await page.waitForTimeout(2000)
-
-
-        // await page.waitForSelector("a[class='product-card__link-overlay']") // Wait for preffered product title selector
-        // const productCard = await page.$$("a[class='product-card__link-overlay']") // Get all a product link element
-        // const productMapping = productCard.map(async (productElement) => { // Map all the product and find matched product
-
-        //     const productTitle = await getProperty(productElement, 'innerText') // Get element Text
-        //     if( productTitle === preferredTitle){ // If title is equal to PreferredTitle proceed                
-        //         await mouseMove(productElement, page) // move mouse to element and click
-        //         sendResponse(res, `${preferredTitle} Product Found and selected...`)
-        //         // await productElement.click();
-        //         await productPage(page, userBotData, res)
-        //     }else{
-        //         sendResponse(res, `${preferredTitle} != ${productTitle} Product Not Found!!!`)
-        //         // await page.close()
-        //     }
-        // })
-        // await Promise.all(productMapping)        
-
-     }
-     //else if(preferredSKU){ // if user added Product SKU
-    //     sendResponse(res, `Searching Product ${preferredSKU}...`)
-        
-    //     preferredSKUElement = await page.$("input[id='VisualSearchInput']") // get preferred SKU selector and assign to variable
-    //     await mouseMove(preferredSKUElement, page) // move mouse to element and click
-    //     await page.type("input[id='VisualSearchInput']", preferredSKU) // Write SKU on the search bar
-    //     sendResponse(res, `${preferredSKU} SKU written...`)
-    //     await page.waitForTimeout(2000)
-
-    //     preferredSKUSearchElement = await page.$("button[class='pre-search-btn ripple']") // get preferred search button selector and assign to variable
-    //     await mouseMove(preferredSKUSearchElement, page) // move mouse to element and click
-    //     sendResponse(res, `Search Button Clicked...`)
-    //     // await page.$eval("button[class='pre-search-btn ripple']", elem => elem.click()) // Click the Search button
-    //     await page.waitForTimeout(2000)
-
-
-    //    await page.waitForSelector("a[class='product-card__link-overlay']") // Wait for preffered product title selector
-    //     const productCard = await page.$$("a[class='product-card__link-overlay']") // Get all a product link element
-    //     const productMapping = productCard.map(async (productElement) => { // Map all the product and find matched product
-    //         const productTitle = await getProperty(productElement, 'innerText') // Get element Text
-    //         if( productTitle === preferredTitle){ // If title is equal to PreferredTitle proceed
-    //             await mouseMove(productElement, page) // move mouse to element and click
-    //             sendResponse(res, `${productTitle} Product Found and selected...`)
-    //             // await productElement.click();
-    //             await productPage(page, userBotData, res)
-    //         }else{
-    //             sendResponse(res, `${productTitle} Product Not Found!!!`)
-    //             // await page.close()
-    //         }
-    //     })
-    //     await Promise.all(productMapping)  
-
-    // }else if(preferredTitle && preferredSKU ){ // if user added Both Product Title and SKU
-    //     sendResponse(res, `Searching Product ${preferredTitle}/${preferredSKU}...`)
-
-    //     preferredSKUElement = await page.$("input[id='VisualSearchInput']") // get preferred SKU selector and assign to variable
-    //     await mouseMove(preferredSKUElement, page) // move mouse to element and click
-    //     await page.type("input[id='VisualSearchInput']", preferredSKU) // Write SKU on the search bar
-    //     sendResponse(res, `${preferredSKU} SKU written...`)
-    //     await page.waitForTimeout(2000)
-
-    //     preferredSKUSearchElement = await page.$("button[class='pre-search-btn ripple']") // get preferred search button selector and assign to variable
-    //     await mouseMove(preferredSKUSearchElement, page) // move mouse to element and click
-    //     sendResponse(res, `Search Button Clicked...`)
-    //     // await page.$eval("button[class='pre-search-btn ripple']", elem => elem.click()) // Click the Search button
-    //     await page.waitForTimeout(2000)
-
-
-    //    await page.waitForSelector("a[class='product-card__link-overlay']") // Wait for preffered product title selector
-    //     const productCard = await page.$$("a[class='product-card__link-overlay']") // Get all a product link element
-    //     const productMapping = productCard.map(async (productElement) => { // Map all the product and find matched product
-    //         const productTitle = await getProperty(productElement, 'innerText') // Get element Text
-    //         if( productTitle === preferredTitle){ // If title is equal to PreferredTitle proceed
-    //             await mouseMove(productElement, page) // move mouse to element and click
-    //             sendResponse(res, `${productTitle} Product Found and selected...`)
-    //             // await productElement.click();
-    //             await productPage(page, userBotData, res)
-    //         }else{
-    //             sendResponse(res, `${productTitle} Product Not Found!!!`)
-    //             // await page.close()
-    //         }
-    //     })
-    //     await Promise.all(productMapping)
-
-    // }  
-
-}
-
 async function productPage(page, userBotData, res){
     const preferredSize = userBotData['preferredSize']
+    await page.waitForTimeout(3000)
 
     await page.waitForSelector("button[data-qa='size-dropdown']") // Wait for selector to appear
     const sizeCard = await page.$$("button[data-qa='size-dropdown']") // Get all a size link element
@@ -234,6 +129,7 @@ async function productPage(page, userBotData, res){
         if( productSize === preferredSize){ // If size is equal to preferredSize proceed
             sendResponse(res, `Size ${preferredSize} Selected...`)
             await mouseMove(sizeElement, page)
+            await page.waitForTimeout(2000)
             await sizeElement.click() // move mouse to element and click
         }else{
             sendResponse(res, `Size ${preferredSize} not match...`)
@@ -251,6 +147,7 @@ async function productPage(page, userBotData, res){
     if(addToCartElement !== null){
         element = await page.$(".ncss-btn-primary-dark");
         await mouseMove(element, page)
+        await page.waitForTimeout(2000)
         await page.$eval(".ncss-btn-primary-dark", elem => elem.click()); // color picker
         sendResponse(res, `Product Successfully Added to Cart...`)      
     }else{
@@ -260,6 +157,7 @@ async function productPage(page, userBotData, res){
 
     await page.waitForSelector("button[data-qa='checkout-link']"); // Wait for checkout button
     const buttonCheckoutElement = await page.$("button[data-qa='checkout-link']") // get preferred search button selector and assign to variable
+    await page.waitForTimeout(2000)
     await mouseMove(buttonCheckoutElement, page) // move mouse to element and click
     // await buttonCheckoutElement.click()
     await sendResponse(res, `Already on checkout page...`)
@@ -268,6 +166,7 @@ async function productPage(page, userBotData, res){
     // await page.waitForNavigation()
     await page.waitForSelector("#qa-guest-checkout") // Wait for checkout button
     const qaguestcheckoutElement = await page.$("#qa-guest-checkout") // get preferred search button selector and assign to variable
+    await page.waitForTimeout(2000)
     await mouseMove(qaguestcheckoutElement, page) // move mouse to element and click
     sendResponse(res, `Entered Guest Checkout Page...`)
     await page.waitForTimeout(2000)

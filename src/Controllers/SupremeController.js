@@ -3,11 +3,8 @@ const https = require('https')
 const puppeteer = require('puppeteer-extra')
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')
 const pluginProxy = require('puppeteer-extra-plugin-proxy')
-// const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker')
 const ac = require('@antiadmin/anticaptchaofficial')
 const { PrivacyApi } = require('privacy.com')
-const express = require('express')
-let router = express.Router()
 
 // Production
 const antiCaptchaKey = process.env.ANTICAPTCHA_API_KEY || '1d0f98f50be1aa14f3b726b3ffdd2ffb' // AntiCaptcha API Key
@@ -19,16 +16,16 @@ const siteUrl = process.env.SUPREME_URL || 'https://www.supremenewyork.com/shop/
  * Puppeteer Stealth Pre Settings for anti bot detection
 **/ 
 puppeteer.use(StealthPlugin())
-puppeteer.use(pluginProxy({
-    address: 'zproxy.lum-superproxy.io',
-    port: 22225,
-    credentials: {
-      username: 'lum-customer-c_35009731-zone-dnashoebot-country-us',
-      password: 'jiv2w#%o42of',
-    }
-  }))
+// puppeteer.use(pluginProxy({
+//     address: 'zproxy.lum-superproxy.io',
+//     port: 22225,
+//     credentials: {
+//       username: 'lum-customer-c_35009731-zone-dnashoebot-country-us',
+//       password: 'jiv2w#%o42of',
+//     }
+//   }))
 
-router.get('/', (req, res, next) => {
+exports.supreme = (req, res, next) => {
     res.set({
         'Cache-Control': 'no-cache',
         'Content-Type': 'text/event-stream',
@@ -48,8 +45,7 @@ router.get('/', (req, res, next) => {
     // createCard(req.query, res) // Privay.com check response of create API
     checkout(userBotData, res)
     next()
-})
-module.exports = router // Export module
+}
 
 async function createCard(userBotData, res){ // Privacy.com 
 
