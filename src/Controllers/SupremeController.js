@@ -16,14 +16,14 @@ const siteUrl = process.env.SUPREME_URL || 'https://www.supremenewyork.com/shop/
  * Puppeteer Stealth Pre Settings for anti bot detection
 **/ 
 puppeteer.use(StealthPlugin())
-// puppeteer.use(pluginProxy({
-//     address: 'zproxy.lum-superproxy.io',
-//     port: 22225,
-//     credentials: {
-//       username: 'lum-customer-c_35009731-zone-dnashoebot-country-us',
-//       password: 'jiv2w#%o42of',
-//     }
-//   }))
+puppeteer.use(pluginProxy({
+    address: 'zproxy.lum-superproxy.io',
+    port: 22225,
+    credentials: {
+      username: 'lum-customer-c_35009731-zone-dnashoebot-country-us',
+      password: 'jiv2w#%o42of',
+    }
+  }))
 
 exports.supreme = (req, res, next) => {
     res.set({
@@ -176,11 +176,6 @@ async function checkout(userBotData, res){
         delete navigator.__proto__.webdriver;
     })
 
-    // const goto = await page.goto('https://bot.sannysoft.com/', {waitUntil: 'networkidle2', timeout: 0})
-    // const goto = await page.goto('https://coveryourtracks.eff.org/', {waitUntil: 'networkidle2', timeout: 0})
-    // const goto = await page.goto('https://bot.incolumitas.com/', {waitUntil: 'networkidle2', timeout: 0})
-    // const goto = await page.goto('https://niespodd.github.io/browser-fingerprinting/', {waitUntil: 'networkidle2', timeout: 0})
-    // const goto = await page.goto('https://whoer.net/', {waitUntil: 'networkidle2', timeout: 0})
     const goto = await page.goto(url, {waitUntil: 'networkidle2', timeout: 0})
     
     if(goto === null){
@@ -275,7 +270,7 @@ async function addToCart(page, userBotData, res){
         const element = await page.$$('select[aria-labelledby="select-size"] > option')
         await mouseMove(element, page)
 
-        const sizeMapping = sizeElement1.map(async (element) => {
+        const sizeMapping = element.map(async (element) => {
             const size = await getProperty(element, 'innerText')
             if( size === preferredSize ){
                 const value = await getProperty(element, 'value')                
@@ -283,6 +278,7 @@ async function addToCart(page, userBotData, res){
                 sendResponse(res, `${size} size succesfully selected... `)
             }else{
                 sendResponse(res, `${size} size not found... Process Stopped!!!`)
+                await page.close()
             }
         })
     }
@@ -449,15 +445,15 @@ async function checkoutFormPage(page, userBotData, res){
         sendResponse(res, responseResult)
     }
 
-    await page.waitForSelector("input[id='rnsnckrn']")
+    await page.waitForSelector("input[id='credit_card_number']")
     const rnsnckrn = await page.evaluate(() => {
-        const element = document.querySelector("input[id='rnsnckrn']");        
+        const element = document.querySelector("input[id='credit_card_number']");        
         return element;
     })
-    let rnsnckrnelement  = await page.$("input[id='rnsnckrn']");
+    let rnsnckrnelement  = await page.$("input[id='credit_card_number']");
     await mouseMove(rnsnckrnelement, page)
     if(rnsnckrn !== null){
-        await page.type("input[id='rnsnckrn']", preferredCreditCardNumber); // Write Credit Card Number
+        await page.type("input[id='credit_card_number']", preferredCreditCardNumber); // Write Credit Card Number
         await page.waitForTimeout(1000)
         responseResult = `Successfully written Credit Card Number...`
         sendResponse(res, responseResult)
@@ -492,15 +488,15 @@ async function checkoutFormPage(page, userBotData, res){
         sendResponse(res, responseResult)
     }
 
-    await page.waitForSelector("input[id='orcer']")
+    await page.waitForSelector("input[id='credit_card_verification_value']")
     const orcer = await page.evaluate(() => {
-        const element = document.querySelector("input[id='orcer']");        
+        const element = document.querySelector("input[id='credit_card_verification_value']");        
         return element;
     })
-    let orcerelement  = await page.$("input[id='orcer']");
+    let orcerelement  = await page.$("input[id='credit_card_verification_value']");
     await mouseMove(orcerelement, page)
     if(orcer !== null){
-        await page.type("input[id='orcer']", preferredCcnCVV); // Write Credit Card CVV
+        await page.type("input[id='credit_card_verification_value']", preferredCcnCVV); // Write Credit Card CVV
         await page.waitForTimeout(1000)
         responseResult = `Successfully written Credit Card CVV...`
         sendResponse(res, responseResult)
