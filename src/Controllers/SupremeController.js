@@ -1,6 +1,7 @@
 const http = require('http')
 const https = require('https')
 const puppeteer = require('puppeteer-extra')
+const { Cluster } = require('puppeteer-cluster');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')
 const pluginProxy = require('puppeteer-extra-plugin-proxy')
 const ac = require('@antiadmin/anticaptchaofficial')
@@ -43,7 +44,9 @@ exports.supreme = (req, res, next) => {
     });
     let userBotData = req.query
     // createCard(req.query, res) // Privay.com check response of create API
+    // checkoutCluster(userBotData, res)
     checkout(userBotData, res)
+    
     next()
 }
 
@@ -146,6 +149,47 @@ async function startProfile(userBotData, res){ // Multi Login Settings
     }).on("error", (err) => {
       console.log(err.message);
     });
+}
+
+async function checkoutCluster(userBotData, res){
+
+        sendResponse(res, 'Connecting to the site!!!') // Return update to client
+        const url = siteUrl + userBotData["preferredCategoryName"] // Add Category name to the url to scrape
+
+        const args = ['--no-sandbox']
+        const ignoreDefaultArgs = ["--enable-automation", "--enable-blink-features=IdleDetection"]
+        const options = {
+            slowMo: 50,
+            headless: false,
+            ignoreHTTPSErrors: true,
+            ignoreDefaultArgs: ignoreDefaultArgs,
+            args
+        }
+
+        const cluster = await Cluster.launch({
+            options,
+            puppeteer,
+            maxConcurrency: 2,
+            concurrency: Cluster.CONCURRENCY_CONTEXT
+        })
+    
+        await cluster.task(async ({page, data:url}) => {
+            const goto = await page.goto(url, {waitUntil: 'networkidle2', timeout: 0})
+        
+            if(goto === null){
+                sendResponse(res, 'Cant get the site url... Process Stopped!!!')
+                await browser.close()
+            }else{
+                sendResponse(res, 'Succesfully accessed the site url...')
+                await page.waitForSelector(".sold_out_tag")
+                await removeSoldOutProduct(page, userBotData, res)
+            }
+        })
+    
+        // Queue any number of tasks
+        cluster.queue(url)
+        await cluster.idle()
+        await cluster.close()
 }
 
 async function checkout(userBotData, res){
@@ -278,7 +322,7 @@ async function addToCart(page, userBotData, res){
                 sendResponse(res, `${size} size succesfully selected... `)
             }else{
                 sendResponse(res, `${size} size not found... Process Stopped!!!`)
-                await page.close()
+                // await page.close()
             }
         })
     }
